@@ -70,7 +70,7 @@ const C = {
   hamPaw: '#f8d8b0',
 };
 
-const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ ';
+const NAMING_OPTIONS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ ', 'DELETE', 'DONE'];
 
 // ============================================================
 // GAME STATE
@@ -231,10 +231,14 @@ function simulateTick() {
     if (Math.abs(hamster.posX - 210) < 9) hamster.metrics.thirst = Math.max(0, hamster.metrics.thirst - 15);
   }
 
-  hamster.activityTimer--;
+  const atTarget = Math.abs(hamster.posX - hamster.targetX) < 8;
+  // Activity time starts once the hamster physically reaches its destination.
+  if (atTarget || hamster.activity === ACTIVITIES.IDLE || hamster.activity === ACTIVITIES.GROOMING) {
+    hamster.activityTimer--;
+  }
   if (hamster.activityTimer <= 0) chooseNextActivity();
 
-  if (hamster.activity === ACTIVITIES.RUNNING) {
+  if (hamster.activity === ACTIVITIES.RUNNING && atTarget) {
     const speed = 0.5 + hamster.traits.wheelEnthusiasm * 0.5;
     hamster.metrics.wheelDistance += speed;
     wheelAngle += speed * 12;
@@ -443,171 +447,82 @@ function drawFoodSprite(type, fx, fy, scale) {
 // ============================================================
 
 function drawHabitat() {
-  // Back wall - warm tan wood paneling
-  const wallGrad = ctx.createLinearGradient(0, 0, 0, H);
-  wallGrad.addColorStop(0, C.bgWallLight);
-  wallGrad.addColorStop(0.6, C.bgWall);
-  wallGrad.addColorStop(1, C.bgWallDark);
-  ctx.fillStyle = wallGrad;
-  ctx.fillRect(0, 0, W, H);
-  px(0, 18, W, 5, '#49382a');
-  px(3, 23, W - 6, 3, '#8f7658');
-  
-  // Subtle wood grain lines
-  ctx.strokeStyle = 'rgba(100,60,30,0.08)';
-  ctx.lineWidth = 1;
-  for (let wy = 10; wy < 200; wy += 18) {
-    ctx.beginPath();
-    ctx.moveTo(0, wy);
-    for (let wx = 0; wx < W; wx += 8) {
-      ctx.lineTo(wx, wy + Math.sin(wx * 0.05 + wy) * 2);
-    }
+  // The enclosure is the interface: dark cabinet, inset parchment back wall.
+  ctx.fillStyle = '#2d2923'; ctx.fillRect(0, 0, W, H);
+  roundRect(3, 3, W - 6, 247, 8, '#574a3b');
+  roundRect(7, 7, W - 14, 239, 6, '#b99a70');
+  roundRect(10, 10, W - 20, 233, 3, '#d8bb8e');
+  const wall = ctx.createLinearGradient(0, 12, 0, 205);
+  wall.addColorStop(0, '#e4cba3'); wall.addColorStop(1, '#c6a476');
+  ctx.fillStyle = wall; ctx.fillRect(12, 12, W - 24, 194);
+  // Handmade back-wall seams and scuffs.
+  ctx.strokeStyle = 'rgba(104,75,45,.13)'; ctx.lineWidth = 1;
+  for (let y = 34; y < 195; y += 24) {
+    ctx.beginPath(); ctx.moveTo(13, y);
+    for (let x = 13; x < 228; x += 8) ctx.lineTo(x, y + Math.sin(x * .13 + y) * 1.4);
     ctx.stroke();
   }
-
-  // Floor area (lower portion)
-  const floorY = 195;
-  roundRect(0, floorY, W, H - floorY, 0, C.floor);
-  
-  // Bedding layer - thick, cozy, textured
-  const bedTop = 200;
-  ctx.fillStyle = C.bedding;
-  ctx.beginPath();
-  ctx.moveTo(0, H);
-  for (let bx = 0; bx <= W; bx += 3) {
-    const by = bedTop + Math.sin(bx * 0.1) * 3 + Math.sin(bx * 0.2 + 1) * 2;
-    ctx.lineTo(bx, by);
+  drawMemorialMarks();
+  // Deep, uneven bedding.
+  ctx.fillStyle = '#d1ae72'; ctx.fillRect(10, 198, W - 20, 44);
+  ctx.fillStyle = '#ead09b'; ctx.beginPath(); ctx.moveTo(10, 242);
+  for (let x = 10; x <= 230; x += 2) ctx.lineTo(x, 198 + Math.sin(x * .31) * 3 + Math.sin(x * .09) * 2);
+  ctx.lineTo(230, 242); ctx.closePath(); ctx.fill();
+  for (let i = 0; i < 82; i++) {
+    const x = 12 + (i * 37) % 216, y = 201 + (i * 19) % 38;
+    const col = ['#f3dca9','#c39a5d','#dfbd7c','#fff0c5'][i % 4];
+    px(x, y, 2 + i % 4, 1 + i % 2, col);
   }
-  ctx.lineTo(W, H);
-  ctx.closePath();
-  ctx.fill();
-  
-  // Bedding texture - scattered bits
-  for (let i = 0; i < 30; i++) {
-    const bx = (i * 8.3) % W;
-    const by = bedTop + 4 + (i * 7.1) % 30;
-    const c = i % 3 === 0 ? C.beddingLight : i % 3 === 1 ? C.beddingDark : C.beddingAccent;
-    px(bx, by, 3 + (i % 2), 2, c);
-  }
-
-  // Draw habitat elements (back to front)
   drawHideout();
   drawWheel();
   drawWaterBottle();
-  drawFoodBowl();
   drawGroundFood();
   drawFallingFood();
 }
 
-function drawFoodBowl() {
-  const x = 181, y = 211;
-  ellipse(x, y + 5, 18, 5, '#5a4535');
-  roundRect(x - 16, y - 1, 32, 8, 3, '#b8aa91');
-  ellipse(x, y, 15, 4, '#746754');
-  const shown = Math.min(foodOnGround.length, 5);
-  for (let i = 0; i < shown; i++) {
-    drawFoodSprite(foodOnGround[i].type, x - 8 + i * 4, y - 3 - (i % 2) * 2, 0.65);
+function drawMemorialMarks() {
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.font = 'bold 7px monospace'; ctx.fillStyle = '#4d3d2d'; ctx.fillText('LEGENDS', 18, 19);
+  const records = [memorial.legends.oldest, memorial.legends.heaviest, memorial.legends.longestRunner];
+  const labels = ['OLDEST','HEAVY','RUNNER'];
+  for (let i = 0; i < 3; i++) {
+    const x = 16 + i * 31;
+    ellipse(x + 9, 38, 7, 6, '#b96b30'); ellipse(x + 9, 39, 4, 3, '#f7dfb8');
+    px(x + 6, 35, 2, 2, '#241b15'); px(x + 11, 35, 2, 2, '#241b15');
+    ctx.font = '5px monospace'; ctx.fillStyle = '#66503b'; ctx.fillText(labels[i], x, 48);
+    ctx.fillStyle = '#3e3025'; ctx.fillText(records[i]?.name || '—', x, 55);
   }
-  px(x - 11, y + 5, 20, 1, '#d8cbb2');
+  ctx.font = 'bold 7px monospace'; ctx.fillStyle = '#4d3d2d'; ctx.fillText('FAMILY', 184, 19);
+  ctx.font = '5px monospace'; ctx.fillStyle = '#7f6044';
+  const family = memorial.lastFive.slice(-4);
+  family.forEach((name, i) => ctx.fillText(`${name}  ×`, 184, 32 + i * 9));
+  if (hamster) { ctx.fillStyle = '#30231b'; ctx.fillText(hamster.name, 184, 68); }
 }
 
 function drawHideout() {
-  const hx = 8, hy = 160;
-  
-  // House body
-  roundRect(hx, hy + 18, 56, 42, 4, C.hideBody);
-  roundRect(hx + 3, hy + 21, 50, 36, 3, '#9a6030');
-  
-  // Wood plank lines
-  ctx.strokeStyle = 'rgba(60,30,10,0.2)';
-  ctx.lineWidth = 1;
-  for (let ly = hy + 24; ly < hy + 55; ly += 7) {
-    ctx.beginPath();
-    ctx.moveTo(hx + 4, ly);
-    ctx.lineTo(hx + 52, ly);
-    ctx.stroke();
-  }
-  
-  // Roof - cozy peaked
-  ctx.fillStyle = C.hideRoof;
-  ctx.beginPath();
-  ctx.moveTo(hx - 4, hy + 20);
-  ctx.lineTo(hx + 28, hy);
-  ctx.lineTo(hx + 60, hy + 20);
-  ctx.closePath();
-  ctx.fill();
-  
-  // Roof shading
-  ctx.fillStyle = C.hideRoofLight;
-  ctx.beginPath();
-  ctx.moveTo(hx + 2, hy + 18);
-  ctx.lineTo(hx + 28, hy + 4);
-  ctx.lineTo(hx + 40, hy + 12);
-  ctx.lineTo(hx + 2, hy + 18);
-  ctx.closePath();
-  ctx.fill();
-  
-  // Roof ridge
-  px(hx + 24, hy - 1, 8, 3, C.woodDark);
-  
-  // Door opening (arch)
-  ctx.fillStyle = C.hideDoor;
-  ctx.beginPath();
-  ctx.arc(hx + 28, hy + 42, 11, Math.PI, 0, true);
-  ctx.lineTo(hx + 39, hy + 58);
-  ctx.lineTo(hx + 17, hy + 58);
-  ctx.closePath();
-  ctx.fill();
-  
-  // Door inner shadow
-  ctx.fillStyle = '#1a0c06';
-  ctx.beginPath();
-  ctx.arc(hx + 28, hy + 44, 8, Math.PI, 0, true);
-  ctx.lineTo(hx + 36, hy + 56);
-  ctx.lineTo(hx + 20, hy + 56);
-  ctx.closePath();
-  ctx.fill();
+  const x = 15, y = 165;
+  ctx.fillStyle = '#355b50'; ctx.beginPath(); ctx.moveTo(x - 3, y + 18); ctx.lineTo(x + 25, y); ctx.lineTo(x + 55, y + 18); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#70917d'; ctx.beginPath(); ctx.moveTo(x, y + 17); ctx.lineTo(x + 25, y + 3); ctx.lineTo(x + 43, y + 13); ctx.closePath(); ctx.fill();
+  roundRect(x, y + 16, 52, 42, 3, '#547a68');
+  px(x + 3, y + 19, 46, 3, '#7fa08c');
+  ctx.fillStyle = '#211b16'; ctx.beginPath(); ctx.arc(x + 27, y + 43, 12, Math.PI, 0); ctx.lineTo(x + 39, y + 58); ctx.lineTo(x + 15, y + 58); ctx.fill();
+  ctx.strokeStyle = 'rgba(30,45,37,.32)';
+  for (let yy = y + 25; yy < y + 55; yy += 7) { ctx.beginPath(); ctx.moveTo(x + 3, yy); ctx.lineTo(x + 49, yy); ctx.stroke(); }
+  px(x + 7, y + 22, 8, 2, '#9eb09a'); px(x + 44, y + 29, 3, 9, '#416657');
 }
 
 function drawWheel() {
-  const cx = 120, cy = 155, r = 42;
-  
-  // Stand/support
-  px(115, 195, 10, 10, C.wheelDark);
-  px(117, 190, 6, 8, C.wheel);
-  
-  // Support arm to center
-  ctx.strokeStyle = C.wheelDark;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(120, 195);
-  ctx.lineTo(cx, cy);
-  ctx.stroke();
-  
-  // Outer rim (thick)
-  ctx.strokeStyle = C.wheelRim;
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-  
-  // Running surface
-  ctx.strokeStyle = C.wheel;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r - 5, 0, Math.PI * 2);
-  ctx.stroke();
-  
-  // Inner ring
-  ctx.strokeStyle = C.wheelLight;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, r - 10, 0, Math.PI * 2);
-  ctx.stroke();
+  const cx = 119, cy = 142, r = 51;
+  px(83, 190, 10, 17, '#38594e'); px(145, 190, 10, 17, '#38594e');
+  ctx.fillStyle = '#3e6659'; ctx.beginPath(); ctx.moveTo(78,207);ctx.lineTo(93,180);ctx.lineTo(101,207);ctx.fill();
+  ctx.beginPath();ctx.moveTo(138,207);ctx.lineTo(147,180);ctx.lineTo(162,207);ctx.fill();
+  ctx.strokeStyle = '#294a41'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle = '#709481'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx,cy,r-6,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle = '#91a78b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx,cy,r-12,0,Math.PI*2);ctx.stroke();
   
   // Rungs/bars across the running surface (rotating)
-  for (let i = 0; i < 12; i++) {
-    const angle = (wheelAngle * Math.PI / 180) + (i * Math.PI / 6);
+  for (let i = 0; i < 10; i++) {
+    const angle = (wheelAngle * Math.PI / 180) + (i * Math.PI / 5);
     const ix = cx + Math.cos(angle) * (r - 9);
     const iy = cy + Math.sin(angle) * (r - 9);
     const ox = cx + Math.cos(angle) * (r - 2);
@@ -636,16 +551,16 @@ function drawWheel() {
   }
   
   // Center hub
-  ellipse(cx, cy, 6, 6, C.wheelLight);
-  ellipse(cx, cy, 3, 3, C.wheelDark);
+  ellipse(cx, cy, 8, 8, '#789382');
+  ellipse(cx, cy, 3, 3, '#344f47');
   px(cx - 1, cy - 1, 2, 2, C.wheelLight);
 }
 
 function drawWaterBottle() {
-  const bx = 200, by = 38;
+  const bx = 199, by = 51;
   
   // Metal bracket/holder
-  roundRect(bx - 2, by - 8, 28, 8, 3, '#808080');
+  roundRect(bx - 2, by - 8, 28, 8, 3, '#3f5b51');
   px(bx + 2, by - 10, 4, 4, '#909090');
   px(bx + 18, by - 10, 4, 4, '#909090');
   
@@ -653,7 +568,7 @@ function drawWaterBottle() {
   roundRect(bx, by, 24, 65, 8, C.bottle);
   
   // Water fill
-  const waterLevel = 50;
+  const waterLevel = 43;
   roundRect(bx + 3, by + 65 - waterLevel, 18, waterLevel - 5, 6, C.water);
   
   // Water highlight/shine
@@ -690,9 +605,11 @@ function drawWaterBottle() {
 }
 
 function drawGroundFood() {
-  if (hamster && hamster.activity === ACTIVITIES.EATING && foodOnGround[0]) {
-    const food = foodOnGround[0];
-    drawFoodSprite(food.type, hamster.posX + hamster.facing * 12, 203, 0.65);
+  // Every dropped item remains visible. Older pieces settle lower, producing a pile.
+  for (let i = 0; i < foodOnGround.length; i++) {
+    const food = foodOnGround[i];
+    const scale = 0.75 + Math.min(0.35, food.remaining / food.maxAmount * 0.35);
+    drawFoodSprite(food.type, food.x, food.y - Math.floor(i / 7) * 2, scale);
   }
 }
 
@@ -704,7 +621,7 @@ function drawFallingFood() {
     f.x += f.vx || 0;
     f.rotation = (f.rotation || 0) + 0.1;
     
-    const groundY = 207;
+    const groundY = 219 - Math.min(13, Math.floor(foodOnGround.length / 6) * 2);
     if (f.y >= groundY) {
       if (f.bounces < 2) {
         f.y = groundY;
@@ -712,7 +629,7 @@ function drawFallingFood() {
         f.vx *= 0.5;
         f.bounces++;
       } else {
-        foodOnGround.push({ type: f.type, x: 181, y: 207, remaining: 3, maxAmount: 3 });
+        foodOnGround.push({ type: f.type, x: f.x, y: groundY, remaining: 3, maxAmount: 3 });
         fallingFood.splice(i, 1);
         saveGame();
         continue;
@@ -733,14 +650,14 @@ function drawFallingFood() {
 
 function drawHamster() {
   if (!hamster || !hamster.alive) return;
-  
-  const x = Math.floor(hamster.posX);
-  const groundY = 210;
+  const inWheel = hamster.activity === ACTIVITIES.RUNNING && Math.abs(hamster.posX - hamster.targetX) < 8;
+  const x = inWheel ? 119 : Math.floor(hamster.posX);
+  const groundY = inWheel ? 177 : 218;
   
   // Size scaling
-  let baseR = 14;
-  if (hamster.lifeStage === LIFE_STAGES.ADULT) baseR = 18;
-  if (hamster.lifeStage === LIFE_STAGES.SENIOR) baseR = 17;
+  let baseR = 16;
+  if (hamster.lifeStage === LIFE_STAGES.ADULT) baseR = 20;
+  if (hamster.lifeStage === LIFE_STAGES.SENIOR) baseR = 19;
   const massScale = 0.8 + (hamster.metrics.bodyMass / 60) * 0.4;
   const r = Math.floor(baseR * massScale);
   const f = hamster.facing;
@@ -790,8 +707,8 @@ function drawHamster() {
   if (Math.abs(hamster.posX - hamster.targetX) > 2 && hamster.activity !== ACTIVITIES.RUNNING) {
     dy -= Math.abs(Math.sin(animFrame * 0.28)) * 2;
   }
-  if (hamster.activity === ACTIVITIES.RUNNING) {
-    dy = Math.sin(animFrame * 0.5) * 3;
+  if (inWheel) {
+    dy = Math.abs(Math.sin(animFrame * 0.55)) * -3;
   }
   
   const bodyY = groundY - r + dy;
@@ -805,7 +722,7 @@ function drawHamster() {
   ellipse(x - f * r * 0.9, bodyY + r * 0.3, 4, 3, C.hamGold);
 
   // BODY - round and chunky
-  ellipse(x, bodyY, r, r * 0.95, C.hamOrange);
+  ellipse(x, bodyY, r * 1.04, r * 1.08, '#b8662c');
   ellipse(x - f * r * 0.42, bodyY - r * 0.08, r * 0.48, r * 0.68, C.hamGold);
   
   // Body dark edge (top stripe)
@@ -815,13 +732,13 @@ function drawHamster() {
   ctx.fill();
 
   // BELLY - cream white
-  ellipse(x, bodyY + r * 0.2, r * 0.65, r * 0.6, C.hamBelly);
+  ellipse(x, bodyY + r * 0.28, r * 0.68, r * 0.67, '#f5dfbd');
 
   // HEAD (slightly forward)
   const headX = x + f * r * 0.34;
   const headY = bodyY - r * 0.6;
   const headR = r * 0.7;
-  ellipse(headX, headY, headR, headR * 0.85, C.hamOrange);
+  ellipse(headX, headY, headR * 1.08, headR * 0.98, '#cc7934');
   
   // Head stripe (brown marking on top)
   ctx.fillStyle = C.hamDarkStripe;
@@ -851,21 +768,17 @@ function drawHamster() {
   const eyeSpacing = 5;
   const eyeY = headY - 1;
   
-  // Eye whites
-  ellipse(headX - eyeSpacing, eyeY, 3.5, 4, '#fff');
-  ellipse(headX + eyeSpacing, eyeY, 3.5, 4, '#fff');
-  
-  // Iris (teal/dark)
-  ellipse(headX - eyeSpacing + f * 0.5, eyeY + 0.5, 2.5, 3, C.hamEye);
-  ellipse(headX + eyeSpacing + f * 0.5, eyeY + 0.5, 2.5, 3, C.hamEye);
-  
-  // Eye color highlight
-  px(headX - eyeSpacing - 1 + f, eyeY - 1, 2, 2, C.hamEyeColor);
-  px(headX + eyeSpacing - 1 + f, eyeY - 1, 2, 2, C.hamEyeColor);
-  
-  // Eye shine (white dot)
-  px(headX - eyeSpacing + 1, eyeY - 2, 2, 2, '#fff');
-  px(headX + eyeSpacing + 1, eyeY - 2, 2, 2, '#fff');
+  const blink = animFrame % 190 > 181;
+  const glance = Math.sin(animFrame * 0.018) > 0.55 ? f : 0;
+  if (blink) {
+    px(headX - eyeSpacing - 2, eyeY, 4, 1, '#2d1d15');
+    px(headX + eyeSpacing - 2, eyeY, 4, 1, '#2d1d15');
+  } else {
+    ellipse(headX - eyeSpacing + glance, eyeY, 2.7, 3.3, '#241812');
+    ellipse(headX + eyeSpacing + glance, eyeY, 2.7, 3.3, '#241812');
+    px(headX - eyeSpacing + glance, eyeY - 2, 1, 1, '#fff7e5');
+    px(headX + eyeSpacing + glance, eyeY - 2, 1, 1, '#fff7e5');
+  }
 
   // Projecting cream muzzle gives the face a recognizable hamster silhouette.
   ellipse(headX + f * headR * 0.38, headY + headR * 0.28, 5, 4, C.hamBelly);
@@ -934,7 +847,7 @@ function drawHamster() {
     }
   }
 
-  if (hamster.activity === ACTIVITIES.RUNNING) {
+  if (inWheel) {
     // Legs motion blur
     const legPhase = animFrame * 0.6;
     const legY = pawY - 2;
@@ -950,72 +863,17 @@ function drawHamster() {
 // ============================================================
 
 function drawUI() {
-  // Top bar - dark wood
-  roundRect(0, 0, W, 18, 0, C.uiBg);
-  // Teal accent line
-  px(0, 17, W, 1, C.teal);
-  
-  ctx.textBaseline = 'top';
-  
-  if (hamster && hamster.alive) {
-    ctx.font = 'bold 9px monospace';
-    ctx.fillStyle = C.uiWarm;
-    ctx.fillText(hamster.name, 5, 4);
-    
-    const ageDays = Math.floor(hamster.metrics.ageTicks / DAY_TICKS);
-    ctx.font = '8px monospace';
-    ctx.fillStyle = C.uiText;
-    ctx.fillText(`D${ageDays}`, 85, 5);
-    
-    ctx.fillStyle = C.uiDim;
-    ctx.fillText(STAGE_NAMES[hamster.lifeStage], 115, 5);
-    
-    // Health bar
-    const hPct = hamster.metrics.health / 100;
-    const hColor = hPct > 0.6 ? C.teal : hPct > 0.3 ? '#e8a030' : '#e04040';
-    px(170, 6, 30, 6, '#2a1a10');
-    px(171, 7, Math.floor(28 * hPct), 4, hColor);
-    
-    // Heart icon
-    ctx.fillStyle = hColor;
-    ctx.font = '8px sans-serif';
-    ctx.fillText('♥', 162, 4);
-    
-    // Wheel distance
-    ctx.fillStyle = C.uiDim;
-    ctx.font = '7px monospace';
-    ctx.fillText(`${Math.floor(hamster.metrics.wheelDistance)}m`, 205, 5);
-  }
-
-  // Bottom bar - food selector
-  roundRect(0, 252, W, 30, 0, C.uiBg);
-  px(0, 252, W, 1, C.teal);
-  
+  // A narrow wooden ledge is the only control surface; no stats or meters.
+  roundRect(0, 248, W, 34, 0, '#3d342a');
+  px(0, 248, W, 3, '#8f7658');
   const food = FOOD_TYPES[selectedFoodIndex];
-  
-  // Arrow indicators
-  ctx.font = '12px monospace';
-  ctx.fillStyle = C.teal;
-  ctx.textBaseline = 'middle';
-  ctx.fillText('◂', 4, 267);
-  ctx.fillText('▸', 228, 267);
-  
-  // Food preview area
-  roundRect(22, 255, 196, 22, 6, C.uiBgLight);
-  
-  // Food sprite preview
-  drawFoodSprite(selectedFoodIndex, 40, 266, 1.3);
-  
-  // Food name
-  ctx.font = 'bold 9px monospace';
-  ctx.fillStyle = C.uiText;
-  ctx.textBaseline = 'middle';
-  ctx.fillText(food.name, 58, 262);
-  
-  // Instruction
-  ctx.font = '7px monospace';
-  ctx.fillStyle = C.uiDim;
-  ctx.fillText('press button to drop', 58, 272);
+  roundRect(7, 254, 226, 23, 4, '#b99a70');
+  px(9, 256, 222, 2, '#d7bc91');
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.font = 'bold 13px monospace'; ctx.fillStyle = '#f2e1c2'; ctx.fillText('‹', 13, 266); ctx.fillText('›', 218, 266);
+  drawFoodSprite(selectedFoodIndex, 43, 266, 1.25);
+  ctx.font = 'bold 8px monospace'; ctx.fillStyle = '#2f261e'; ctx.fillText(food.name.toUpperCase(), 61, 263);
+  ctx.font = '6px monospace'; ctx.fillStyle = '#604a36'; ctx.fillText('SCROLL • PRESS TO DROP', 61, 272);
 }
 
 // ============================================================
@@ -1150,33 +1008,30 @@ function drawNamingScreen() {
   const cursor = Math.floor(animFrame / 18) % 2 ? '|' : '';
   ctx.fillText(namingName + cursor, W / 2, 59);
   
-  // Character wheel
-  roundRect(15, 92, 210, 40, 12, 'rgba(255,255,255,0.8)');
-  
-  for (let i = -3; i <= 3; i++) {
-    const ci = (namingCharIndex + i + ALPHABET.length) % ALPHABET.length;
-    const ch = ALPHABET[ci] === ' ' ? '·' : ALPHABET[ci];
+  // Scrollable alphabet includes correction and explicit confirmation.
+  roundRect(12, 90, 216, 48, 5, '#c5a477');
+  px(15, 93, 210, 3, '#ead3ab');
+  for (let i = -2; i <= 2; i++) {
+    const ci = (namingCharIndex + i + NAMING_OPTIONS.length) % NAMING_OPTIONS.length;
+    const raw = NAMING_OPTIONS[ci];
+    const ch = raw === ' ' ? 'SPACE' : raw;
     const isCenter = i === 0;
-    ctx.font = `${isCenter ? 'bold ' : ''}${isCenter ? 16 : 12}px monospace`;
-    ctx.globalAlpha = isCenter ? 1 : Math.max(0.15, 0.4 - Math.abs(i) * 0.1);
-    ctx.fillStyle = isCenter ? C.uiAccent : '#8a7a6a';
-    ctx.fillText(ch, W / 2 + i * 26, 112);
+    ctx.font = `${isCenter ? 'bold ' : ''}${ch.length > 2 ? 8 : isCenter ? 16 : 11}px monospace`;
+    ctx.globalAlpha = isCenter ? 1 : 0.28;
+    ctx.fillStyle = isCenter ? '#3d3024' : '#735c45';
+    ctx.fillText(ch, W / 2 + i * 45, 113);
   }
   ctx.globalAlpha = 1;
   
   // Selection marker
-  roundRect(W / 2 - 10, 124, 20, 3, 2, C.teal);
+  roundRect(W / 2 - 20, 130, 40, 3, 2, C.tealDark);
   
   ctx.font = '8px monospace';
   ctx.fillStyle = '#8a7060';
   ctx.fillText('SCROLL: choose letter', W / 2, 150);
-  ctx.fillText('PRESS: add letter', W / 2, 164);
-  
-  if (namingName.length > 0) {
-    ctx.font = 'bold 9px monospace';
-    ctx.fillStyle = C.teal;
-    ctx.fillText('LONG PRESS to confirm', W / 2, 200);
-  }
+  ctx.fillText('PRESS: SELECT', W / 2, 164);
+  ctx.font = '7px monospace'; ctx.fillStyle = '#6d5742';
+  ctx.fillText('DELETE fixes mistakes • DONE adopts', W / 2, 194);
   ctx.textAlign = 'left';
 }
 
@@ -1384,7 +1239,7 @@ function gameLoop() {
 window.addEventListener('scrollUp', () => {
   switch (state) {
     case STATES.ADOPT: if (memorial.lastFive.length > 0) state = STATES.MEMORIAL; break;
-    case STATES.NAMING: namingCharIndex = (namingCharIndex - 1 + ALPHABET.length) % ALPHABET.length; break;
+    case STATES.NAMING: namingCharIndex = (namingCharIndex - 1 + NAMING_OPTIONS.length) % NAMING_OPTIONS.length; break;
     case STATES.LIVING: selectedFoodIndex = (selectedFoodIndex - 1 + FOOD_TYPES.length) % FOOD_TYPES.length; break;
   }
 });
@@ -1392,7 +1247,7 @@ window.addEventListener('scrollUp', () => {
 window.addEventListener('scrollDown', () => {
   switch (state) {
     case STATES.ADOPT: if (memorial.lastFive.length > 0) state = STATES.MEMORIAL; break;
-    case STATES.NAMING: namingCharIndex = (namingCharIndex + 1) % ALPHABET.length; break;
+    case STATES.NAMING: namingCharIndex = (namingCharIndex + 1) % NAMING_OPTIONS.length; break;
     case STATES.LIVING: selectedFoodIndex = (selectedFoodIndex + 1) % FOOD_TYPES.length; break;
   }
 });
@@ -1400,7 +1255,13 @@ window.addEventListener('scrollDown', () => {
 window.addEventListener('sideClick', () => {
   switch (state) {
     case STATES.ADOPT: state = STATES.NAMING; namingName = ''; namingCharIndex = 0; break;
-    case STATES.NAMING: if (namingName.length < 10) namingName += ALPHABET[namingCharIndex]; break;
+    case STATES.NAMING: {
+      const option = NAMING_OPTIONS[namingCharIndex];
+      if (option === 'DELETE') namingName = namingName.slice(0, -1);
+      else if (option === 'DONE') finishNaming();
+      else if (namingName.length < 10) namingName += option;
+      break;
+    }
     case STATES.LIVING: dropFood(); break;
     case STATES.DEATH: if (deathTimer > 90) state = STATES.MEMORIAL; break;
     case STATES.MEMORIAL: state = STATES.ADOPT; break;
@@ -1408,25 +1269,24 @@ window.addEventListener('sideClick', () => {
 });
 
 window.addEventListener('longPressStart', () => {
-  if (state === STATES.NAMING && namingName.trim().length > 0) {
-    hamster = createHamster(namingName.trim());
-    foodOnGround = [];
-    fallingFood = [];
-    state = STATES.LIVING;
-    showMessage(`Welcome home, ${hamster.name}!`);
-    saveGame();
-  }
+  if (state === STATES.NAMING) finishNaming();
 });
+
+function finishNaming() {
+  if (namingName.trim().length === 0) return;
+  hamster = createHamster(namingName.trim());
+  foodOnGround = [];
+  fallingFood = [];
+  state = STATES.LIVING;
+  showMessage(`Welcome home, ${hamster.name}!`);
+  saveGame();
+}
 
 function dropFood() {
   if (!hamster || !hamster.alive) return;
-  if (foodOnGround.length + fallingFood.length >= 10) {
-    showMessage('Too much food!');
-    return;
-  }
   fallingFood.push({
     type: selectedFoodIndex,
-    x: 177 + Math.random() * 8,
+    x: 148 + Math.random() * 62,
     y: 20,
     vy: 0,
     vx: (Math.random() - 0.5) * 2.5,
