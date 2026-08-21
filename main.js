@@ -796,12 +796,38 @@ function drawHamster() {
   if (walking) dy += Math.sin(animFrame * 0.34) * 0.35;
   if (inWheel) dy = Math.sin(animFrame * 0.72) * 0.35;
   
-  const bodyY = groundY - r * 0.62 + dy;
+  // Walking/running torso sits just above the feet so the legs support its weight.
+  const supportHeight = walking ? 0.88 : (inWheel ? 0.78 : 0.62);
+  const bodyY = groundY - r * supportHeight + dy;
 
   // Shadow
   ctx.globalAlpha = 0.1;
   ellipse(x, groundY + 3, r * 0.8, 3, '#000');
   ctx.globalAlpha = 1;
+
+  // Draw weight-bearing walking legs behind the body. Feet land below and wider
+  // than the belly instead of protruding sideways like flippers.
+  if (walking) {
+    const gait = Math.sin(animFrame * .36);
+    const nearReach = gait * 3.2;
+    const farReach = -gait * 3.2;
+    const nearLift = Math.max(0, gait) * 1.2;
+    const farLift = Math.max(0, -gait) * 1.2;
+    const hipY = bodyY + r * .42;
+    const footY = groundY - 1;
+    const legs = [
+      { hip: x - f * r * .55, foot: x - f * r * .78 + nearReach, lift: nearLift, color: C.hamPaw },
+      { hip: x + f * r * .48, foot: x + f * r * .88 - nearReach, lift: farLift, color: C.hamPaw },
+      { hip: x - f * r * .38, foot: x - f * r * .66 + farReach, lift: farLift, color: '#d7aa82' },
+      { hip: x + f * r * .34, foot: x + f * r * .72 - farReach, lift: nearLift, color: '#d7aa82' },
+    ];
+    // Far pair first, near pair last for readable depth.
+    for (const leg of [legs[2], legs[3], legs[0], legs[1]]) {
+      ctx.strokeStyle = leg.color; ctx.lineWidth = 3; ctx.beginPath();
+      ctx.moveTo(leg.hip, hipY); ctx.lineTo(leg.foot, footY - leg.lift); ctx.stroke();
+      ellipse(leg.foot + f * 1.5, footY - leg.lift, 3.8, 1.9, leg.color);
+    }
+  }
 
   // TAIL (behind body)
   ellipse(x - f * r * 1.08, bodyY + r * 0.08, 4, 3, C.hamGold);
@@ -917,16 +943,10 @@ function drawHamster() {
     px(x - 6, bodyY + r * 0.4 + pawUp + 1, 1, 1, C.hamPinkDark);
     px(x + 5, bodyY + r * 0.4 - pawUp + 1, 1, 1, C.hamPinkDark);
   }
-  // Walking uses two alternating diagonal pairs, all close to the bedding.
-  if (hamster.activity !== ACTIVITIES.EATING && hamster.activity !== ACTIVITIES.GROOMING && !inWheel) {
-    const gait = walking ? Math.sin(animFrame * .36) : 0;
-    const reach = gait * 2.4;
-    const liftA = walking ? Math.max(0, gait) * 1.4 : 0;
-    const liftB = walking ? Math.max(0, -gait) * 1.4 : 0;
-    ellipse(x - f * r * .48 - reach, pawY - liftB - 1, 3.3, 1.8, '#d7aa82');
-    ellipse(x + f * r * .52 + reach, pawY - liftA - 1, 3.3, 1.8, '#d7aa82');
-    ellipse(x - f * r * .64 + reach, pawY - liftA, 4, 2.2, C.hamPaw);
-    ellipse(x + f * r * .68 - reach, pawY - liftB, 4, 2.2, C.hamPaw);
+  // Stationary paws stay tucked beneath the body without pretending to walk.
+  if (!walking && hamster.activity !== ACTIVITIES.EATING && hamster.activity !== ACTIVITIES.GROOMING && !inWheel) {
+    ellipse(x - f * r * .62, pawY, 4, 2.2, C.hamPaw);
+    ellipse(x + f * r * .66, pawY, 4, 2.2, C.hamPaw);
   }
 
   // ACTIVITY-SPECIFIC ANIMATIONS
@@ -956,7 +976,7 @@ function drawHamster() {
   if (inWheel) {
     // Fast, readable four-leg cycle: paws reach, plant, and sweep back.
     const run = animFrame * .78;
-    const legY = groundY - 3;
+    const legY = groundY - 1;
     for (let i = 0; i < 4; i++) {
       const phase = run + i * Math.PI / 2;
       const fore = i >= 2;
