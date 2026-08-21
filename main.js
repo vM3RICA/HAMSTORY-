@@ -498,29 +498,29 @@ function drawFoodSprite(type, fx, fy, scale) {
       px(-1, -5, 2, 1, '#f0f0e0');
       break;
     case 3: // Broccoli - big green floret
-      ellipse(0, -4, 6, 5, '#2a8a2a');
-      ellipse(-3, -3, 3, 3, '#1a7a1a');
-      ellipse(3, -3, 3, 3, '#1a7a1a');
-      ellipse(0, -6, 3, 3, '#38a838');
-      px(-1, -1, 1, 1, '#208020');
-      px(2, -2, 1, 1, '#48b848');
-      px(-1, 1, 2, 5, '#6a9030');
-      px(0, 3, 1, 2, '#5a8020');
+      ellipse(0, -4, 6, 5, '#47753a');
+      ellipse(-3, -3, 3, 3, '#345f31');
+      ellipse(3, -3, 3, 3, '#3d6935');
+      ellipse(0, -6, 3, 3, '#668b49');
+      px(-1, -1, 1, 1, '#294d2a');
+      px(2, -2, 1, 1, '#86a65d');
+      px(-1, 1, 2, 5, '#789150');
+      px(0, 3, 1, 2, '#596f3d');
       break;
     case 4: // Carrot - orange with green top
-      px(-1, -2, 3, 3, '#ff8c00');
-      px(-1, 1, 2, 3, '#e87800');
-      px(0, 4, 1, 3, '#d06800');
-      px(0, -1, 1, 2, '#ffa030');
+      px(-1, -2, 3, 3, '#c9682f');
+      px(-1, 1, 2, 3, '#ad4f28');
+      px(0, 4, 1, 3, '#843b24');
+      px(0, -1, 1, 2, '#e38a48');
       // green top
       px(-2, -4, 1, 3, '#3a8a3a');
       px(0, -5, 1, 3, '#2a7a2a');
       px(1, -4, 1, 2, '#4a9a4a');
       break;
     case 5: // Banana - curved yellow
-      px(-5, 0, 10, 3, '#ffe135');
-      px(-4, -1, 8, 1, '#ffe850');
-      px(-4, 3, 6, 1, '#e8c820');
+      px(-5, 0, 10, 3, '#d9b93f');
+      px(-4, -1, 8, 1, '#edd56a');
+      px(-4, 3, 6, 1, '#b9982f');
       px(4, -1, 1, 2, '#8B6914');
       px(-5, 2, 1, 1, '#a08020');
       px(-3, 0, 2, 1, '#fff880');
@@ -541,19 +541,29 @@ function drawFoodSprite(type, fx, fy, scale) {
 
 function drawHabitat() {
   // The enclosure is the interface: dark cabinet, inset parchment back wall.
-  ctx.fillStyle = '#2d2923'; ctx.fillRect(0, 0, W, H);
-  roundRect(3, 3, W - 6, 247, 8, '#574a3b');
-  roundRect(7, 7, W - 14, 239, 6, '#b99a70');
-  roundRect(10, 10, W - 20, 233, 3, '#d8bb8e');
+  ctx.fillStyle = '#211c18'; ctx.fillRect(0, 0, W, H);
+  roundRect(3, 3, W - 6, 247, 8, '#493321');
+  roundRect(6, 6, W - 12, 241, 6, '#79583a');
+  roundRect(10, 10, W - 20, 233, 3, '#c39d6c');
+  // Aged cabinet grain and inset highlights.
+  for (let i = 0; i < 12; i++) {
+    ctx.strokeStyle = i % 2 ? 'rgba(39,24,15,.25)' : 'rgba(238,194,132,.12)';
+    ctx.beginPath(); ctx.moveTo(7, 8 + i * 2); ctx.lineTo(233, 8 + i * 2 + Math.sin(i) * .5); ctx.stroke();
+  }
   const wall = ctx.createLinearGradient(0, 12, 0, 205);
-  wall.addColorStop(0, '#d8bb8e'); wall.addColorStop(.55, '#ceb084'); wall.addColorStop(1, '#b99368');
+  wall.addColorStop(0, '#d6b984'); wall.addColorStop(.55, '#caa673'); wall.addColorStop(1, '#a77d50');
   ctx.fillStyle = wall; ctx.fillRect(12, 12, W - 24, 194);
-  // Handmade back-wall seams and scuffs.
+  // Worn plaster seams, hairline cracks, and scuffs.
   ctx.strokeStyle = 'rgba(104,75,45,.13)'; ctx.lineWidth = 1;
   for (let y = 34; y < 195; y += 24) {
     ctx.beginPath(); ctx.moveTo(13, y);
     for (let x = 13; x < 228; x += 8) ctx.lineTo(x, y + Math.sin(x * .13 + y) * 1.4);
     ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(85,58,36,.18)';
+  for (let i = 0; i < 7; i++) {
+    const sx = 28 + i * 29, sy = 78 + (i * 37) % 82;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 7, sy + 4); ctx.lineTo(sx + 4, sy + 10); ctx.stroke();
   }
   // Stable stipple and worn patches create illustrated pixel texture without shimmer.
   for (let i = 0; i < 55; i++) {
@@ -564,19 +574,21 @@ function drawHabitat() {
   ctx.globalAlpha = 1;
   drawMemorialMarks();
   // Deep, uneven bedding.
-  ctx.fillStyle = '#a77c47'; ctx.fillRect(10, 198, W - 20, 44);
-  ctx.fillStyle = '#d4ae70'; ctx.beginPath(); ctx.moveTo(10, 242);
+  ctx.fillStyle = '#8e653b'; ctx.fillRect(10, 198, W - 20, 44);
+  ctx.fillStyle = '#cda66b'; ctx.beginPath(); ctx.moveTo(10, 242);
   for (let x = 10; x <= 230; x += 2) ctx.lineTo(x, 198 + Math.sin(x * .31) * 3 + Math.sin(x * .09) * 2);
   ctx.lineTo(230, 242); ctx.closePath(); ctx.fill();
   // High-contrast top layer makes the paw contact plane readable at r1 scale.
   ctx.strokeStyle = '#8b6338'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(11, 202);
   for (let x = 11; x <= 229; x += 3) ctx.lineTo(x, 202 + Math.sin(x * .47) * 2);
   ctx.stroke();
-  for (let i = 0; i < 190; i++) {
+  for (let i = 0; i < 210; i++) {
     const x = 12 + (i * 37) % 216, y = 201 + (i * 17) % 39;
     const col = ['#f5dca5','#8d6137','#c28d49','#fff0c5','#aa7440','#e4bd7d'][i % 6];
-    px(x, y, 2 + i % 4, 1 + (i % 3 === 0), col);
+    const chipW = 2 + i % 5, chipH = 1 + (i % 4 === 0);
+    px(x, y, chipW, chipH, col);
     if (i % 9 === 0) px(x + 2, y - 1, 1, 1, '#755333');
+    if (i % 11 === 0) px(x + 1, y + chipH, Math.max(2, chipW - 1), 1, 'rgba(91,61,35,.35)');
   }
   drawHideout();
   drawWheel();
@@ -617,16 +629,17 @@ function drawMemorialMarks() {
 
 function drawHideout() {
   const x = 15, y = 165;
-  ctx.fillStyle = '#355b50'; ctx.beginPath(); ctx.moveTo(x - 3, y + 18); ctx.lineTo(x + 25, y); ctx.lineTo(x + 55, y + 18); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#70917d'; ctx.beginPath(); ctx.moveTo(x, y + 17); ctx.lineTo(x + 25, y + 3); ctx.lineTo(x + 43, y + 13); ctx.closePath(); ctx.fill();
-  roundRect(x, y + 16, 52, 42, 3, '#547a68');
-  px(x + 3, y + 19, 46, 3, '#7fa08c');
+  ctx.fillStyle = '#294a41'; ctx.beginPath(); ctx.moveTo(x - 3, y + 18); ctx.lineTo(x + 25, y); ctx.lineTo(x + 55, y + 18); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#56776a'; ctx.beginPath(); ctx.moveTo(x, y + 17); ctx.lineTo(x + 25, y + 3); ctx.lineTo(x + 43, y + 13); ctx.closePath(); ctx.fill();
+  roundRect(x, y + 16, 52, 42, 3, '#8a5a32');
+  px(x + 3, y + 19, 46, 3, '#b77b45');
   ctx.fillStyle = '#211b16'; ctx.beginPath(); ctx.arc(x + 27, y + 43, 12, Math.PI, 0); ctx.lineTo(x + 39, y + 58); ctx.lineTo(x + 15, y + 58); ctx.fill();
-  ctx.strokeStyle = 'rgba(30,45,37,.32)';
+  ctx.strokeStyle = 'rgba(63,35,19,.42)';
   for (let yy = y + 25; yy < y + 55; yy += 7) { ctx.beginPath(); ctx.moveTo(x + 3, yy); ctx.lineTo(x + 49, yy); ctx.stroke(); }
-  px(x + 7, y + 22, 8, 2, '#9eb09a'); px(x + 44, y + 29, 3, 9, '#416657');
-  px(x + 2, y + 34, 3, 2, '#315449'); px(x + 34, y + 19, 8, 2, '#87a18d');
-  px(x + 18, y + 6, 5, 2, '#436b5c'); px(x + 10, y + 52, 3, 3, '#668b77');
+  px(x + 7, y + 22, 8, 2, '#c58b50'); px(x + 44, y + 29, 3, 9, '#674020');
+  px(x + 2, y + 34, 3, 2, '#5a351c'); px(x + 34, y + 19, 8, 2, '#d09a60');
+  px(x + 18, y + 6, 5, 2, '#789081'); px(x + 10, y + 52, 3, 3, '#a66b37');
+  ellipse(x + 7, y + 25, 1.5, 1.5, '#b9b1a1'); ellipse(x + 46, y + 25, 1.5, 1.5, '#6f6b62');
 }
 
 function drawWheel() {
@@ -635,7 +648,10 @@ function drawWheel() {
   ctx.fillStyle = '#3e6659'; ctx.beginPath(); ctx.moveTo(78,207);ctx.lineTo(93,180);ctx.lineTo(101,207);ctx.fill();
   ctx.beginPath();ctx.moveTo(138,207);ctx.lineTo(147,180);ctx.lineTo(162,207);ctx.fill();
   ctx.strokeStyle = '#294a41'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle = '#1e3631'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx,cy,r+5,0,Math.PI*2);ctx.stroke();
   ctx.strokeStyle = '#709481'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx,cy,r-6,0,Math.PI*2);ctx.stroke();
+  // Warm wooden running tread inside the aged teal frame.
+  ctx.strokeStyle = '#8e6842'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx,cy,r-11,0,Math.PI*2);ctx.stroke();
   ctx.strokeStyle = '#91a78b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx,cy,r-12,0,Math.PI*2);ctx.stroke();
   ctx.strokeStyle = 'rgba(221,219,170,.28)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx-1,cy-1,r-4,3.5,5.55);ctx.stroke();
   ctx.strokeStyle = 'rgba(24,52,46,.32)'; ctx.beginPath(); ctx.arc(cx+1,cy+2,r-3,.25,2.35);ctx.stroke();
@@ -685,7 +701,7 @@ function drawWaterBottle() {
   px(bx + 18, by - 10, 4, 4, '#909090');
   
   // Bottle body (large)
-  roundRect(bx, by, 24, 65, 8, C.bottle);
+  roundRect(bx, by, 24, 65, 8, 'rgba(221,235,226,.72)');
   ctx.strokeStyle = '#365f59'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(bx, by, 24, 65, 8); ctx.stroke();
   
   // Water fill
@@ -694,11 +710,13 @@ function drawWaterBottle() {
   
   // Water highlight/shine
   px(bx + 5, by + 20, 3, 25, C.waterLight);
+  px(bx + 8, by + 5, 2, 13, 'rgba(255,255,255,.72)');
   px(bx + 18, by + 42, 2, 15, C.waterDark);
   px(bx + 4, by + 18, 2, 4, 'rgba(255,255,255,0.5)');
   
-  // Bottle cap (red)
-  roundRect(bx + 4, by - 2, 16, 6, 3, C.bottleCap);
+  // Oxidized teal cap and collar match the wheel hardware.
+  roundRect(bx + 4, by - 2, 16, 6, 3, '#456d61');
+  px(bx + 7, by - 1, 9, 1, '#86a997');
   
   // Measurement lines
   ctx.strokeStyle = 'rgba(80,150,200,0.3)';
@@ -840,7 +858,7 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
   const phase = running ? animFrame * .82 : walkPhase;
   const width = r * 2.32;
   let height = width * 111 / 128;
-  let bob = walking ? Math.sin(phase * 2) * .22 : Math.sin(animFrame * .045) * .28;
+  let bob = walking ? Math.sin(phase * 2) * .08 : Math.sin(animFrame * .045) * .2;
   let angle = 0;
   let scaleX = 1;
   let scaleY = 1;
@@ -853,7 +871,7 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
     angle += Math.sin(phase) * .025 * energy;
     scaleX = 1 + Math.abs(stride) * .025 * energy;
     scaleY = 1 - Math.abs(stride) * .035 * energy;
-    bob += Math.abs(stride) * (running ? .9 : .42);
+    bob += Math.abs(stride) * (running ? .42 : .14);
     drawGround = groundY + bob;
   } else {
     // Gentle breathing keeps the master artwork from feeling pasted in place.
@@ -883,8 +901,8 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
     drawGround -= 5 + Math.max(0, sip) * .7;
   }
 
-  ctx.globalAlpha = .18;
-  ellipse(drawX, groundY + 1, width * .38, 2.4, '#342319');
+  ctx.globalAlpha = .24;
+  ellipse(drawX, groundY, width * .4, 1.8, '#342319');
   ctx.globalAlpha = 1;
 
   // Four tiny planted feet animate beneath the master artwork. The body sprite
@@ -926,7 +944,10 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
   const hue = [-4, 7, -10, 4, -7, 10][lookIndex] || 0;
   ctx.filter = `hue-rotate(${hue}deg) saturate(${lookIndex === 2 ? .82 : 1})`;
   if (walking) {
-    ctx.drawImage(hedgehogSprite, 0, 0, 128, 103, -width / 2, -height + 2, width, height * 103 / 111);
+    const croppedHeight = height * 103 / 111;
+    // Position from the cropped height, not the full source height: the visible
+    // belly now meets the exact same contact plane as the animated feet.
+    ctx.drawImage(hedgehogSprite, 0, 0, 128, 103, -width / 2, -croppedHeight + 1, width, croppedHeight);
   } else {
     ctx.drawImage(hedgehogSprite, -width / 2, -height + 2, width, height);
   }
