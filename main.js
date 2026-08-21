@@ -560,10 +560,10 @@ function drawFoodSprite(type, fx, fy, scale) {
 // HABITAT RENDERING - Warm cozy cage filling the screen
 // ============================================================
 
-function drawHabitat() {
+function drawHabitat(drawWallRecords = true) {
   if (habitatBackground.complete && habitatBackground.naturalWidth) {
     ctx.drawImage(habitatBackground, 0, 0, W, H);
-    drawMemorialMarks();
+    if (drawWallRecords) drawMemorialMarks();
     drawHideout();
     drawWheel();
     drawWaterBottle();
@@ -603,7 +603,7 @@ function drawHabitat() {
     px(x, y, 1 + i % 3, 1, i % 2 ? '#fff0cf' : '#795d41');
   }
   ctx.globalAlpha = 1;
-  drawMemorialMarks();
+  if (drawWallRecords) drawMemorialMarks();
   // Deep, uneven bedding.
   ctx.fillStyle = '#8e653b'; ctx.fillRect(10, 198, W - 20, 44);
   ctx.fillStyle = '#cda66b'; ctx.beginPath(); ctx.moveTo(10, 242);
@@ -641,7 +641,8 @@ function drawMemorialMarks() {
     ctx.font = '5px monospace'; ctx.fillStyle = '#66503b'; ctx.fillText(labels[i], x, 48);
     ctx.fillStyle = '#3e3025'; ctx.fillText(records[i]?.name || '—', x, 55);
   }
-  const familyX = 171;
+  // Reserved left of the enlarged bottle so names never sit beneath it.
+  const familyX = 148;
   ctx.font = 'bold 7px monospace'; ctx.fillStyle = '#4d3d2d'; ctx.fillText('FAMILY', familyX, 19);
   ctx.font = '5px monospace';
   const family = memorial.lastFive.slice(-5);
@@ -987,7 +988,10 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
       const reach = swing ? -2.2 + t * 4.4 : 2.2 - t * 4.4;
       const lift = swing ? Math.sin(t * Math.PI) * (running ? 3 : 1.8) : 0;
       const footX = drawX + f * (width * foot.x + reach);
-      const footY = groundY - 1 - lift;
+      // During a climb the same two front legs reach upward; no additional
+      // "grip" limbs are layered over the character artwork.
+      const climbReach = climbing && foot.x > 0 ? 5 + Math.max(0, Math.sin(walkPhase * 1.35 + foot.p)) * 2 : 0;
+      const footY = groundY - 1 - lift - climbReach;
       const legTopY = groundY - (running ? 7 : 6);
       const legTopX = drawX + f * width * foot.x;
       ctx.strokeStyle = foot.far ? '#82584b' : '#c88270';
@@ -1003,23 +1007,6 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
       }
     }
   }
-
-
-  if (climbing) {
-    const grip = Math.sin(walkPhase * 1.35);
-    const pawBaseX = drawX + f * width * .31;
-    const pawBaseY = drawGround - height * .2;
-    // Front paws visibly reach and hold the lower wheel tread.
-    for (let i = 0; i < 2; i++) {
-      const reach = (i ? -grip : grip) * 2;
-      ctx.strokeStyle = '#c88270'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(pawBaseX - f * i * 4, pawBaseY + i * 3);
-      ctx.lineTo(pawBaseX + f * (5 + reach), pawBaseY - 3 + i * 4); ctx.stroke();
-      ellipse(pawBaseX + f * (6 + reach), pawBaseY - 3 + i * 4, 3.3, 1.6, '#df9d86');
-    }
-    ctx.lineCap = 'butt';
-  }
-
   ctx.save();
   ctx.translate(drawX, drawGround);
   ctx.rotate(angle * f);
@@ -1028,10 +1015,10 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
   const hue = [-4, 7, -10, 4, -7, 10][lookIndex] || 0;
   ctx.filter = `hue-rotate(${hue}deg) saturate(${lookIndex === 2 ? .82 : 1})`;
   if (walking) {
-    const croppedHeight = height * 103 / 111;
+    const croppedHeight = height * 99 / 111;
     // Position from the cropped height, not the full source height: the visible
     // belly now meets the exact same contact plane as the animated feet.
-    ctx.drawImage(hedgehogSprite, 0, 0, 128, 103, -width / 2, -croppedHeight + 1, width, croppedHeight);
+    ctx.drawImage(hedgehogSprite, 0, 0, 128, 99, -width / 2, -croppedHeight + 1, width, croppedHeight);
   } else {
     ctx.drawImage(hedgehogSprite, -width / 2, -height + 2, width, height);
   }
@@ -1883,9 +1870,12 @@ function render() {
       ctx.translate(HABITAT_VIEW.focusX, HABITAT_VIEW.focusY);
       ctx.scale(HABITAT_VIEW.scale, HABITAT_VIEW.scale);
       ctx.translate(-HABITAT_VIEW.focusX, -HABITAT_VIEW.focusY);
-      drawHabitat();
+      drawHabitat(false);
       drawHedgehog();
       ctx.restore();
+      // Keep the history legible at native canvas scale while the habitat is
+      // zoomed toward the hedgehog and bedding.
+      drawMemorialMarks();
       drawUI();
       drawMessage();
       break;
