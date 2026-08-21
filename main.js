@@ -1,4 +1,4 @@
-// HAMSTORY - Cozy Pixel-Art Hamster Life Simulator for R1
+// HEDGEHOME - Cozy Pixel-Art Hedgehog Life Simulator for R1
 
 const W = 240, H = 282;
 const TICK_MS = 1000;
@@ -65,20 +65,20 @@ const C = {
   uiAccent: '#b64c35',
   uiDim: '#c8a888',
   uiWarm: '#ffa850',
-  hamOrange: '#c97832',
-  hamGold: '#aa5e29',
-  hamDarkStripe: '#754322',
-  hamBelly: '#fff8e0',
-  hamPink: '#ffb0b8',
-  hamPinkDark: '#e08090',
-  hamCheek: '#ffe0b0',
-  hamEye: '#183040',
-  hamEyeColor: '#308898',
-  hamNose: '#d06868',
-  hamPaw: '#f8d8b0',
+  hedgeCoat: '#c97832',
+  hedgeQuillLight: '#aa5e29',
+  hedgeQuillDark: '#754322',
+  hedgeFace: '#fff8e0',
+  hedgeEar: '#ffb0b8',
+  hedgeToe: '#e08090',
+  hedgeMuzzle: '#ffe0b0',
+  hedgeEye: '#183040',
+  hedgeEyeGlint: '#308898',
+  hedgeNose: '#d06868',
+  hedgePaw: '#f8d8b0',
 };
 
-const HAMSTER_LOOKS = [
+const HEDGEHOG_LOOKS = [
   { coat: '#c97832', light: '#e2964c', dark: '#754322', belly: '#fff1d2', cheek: '#ffe0b0', pattern: 'stripe' },
   { coat: '#e4c79e', light: '#f3dfbd', dark: '#9b7659', belly: '#fff7e8', cheek: '#f5d4bd', pattern: 'band' },
   { coat: '#89847b', light: '#aaa49a', dark: '#4d4a47', belly: '#eee8dc', cheek: '#d8c5b4', pattern: 'sable' },
@@ -94,7 +94,7 @@ const NAMING_OPTIONS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ ', 'DELETE', 'DONE'];
 // ============================================================
 
 let state = STATES.ADOPT;
-let hamster = null;
+let hedgehog = null;
 let foodOnGround = []; // {type, x, y, remaining, maxAmount}
 let fallingFood = [];
 let selectedFoodIndex = 0;
@@ -131,14 +131,14 @@ ctx.imageSmoothingEnabled = false;
 async function saveGame() {
   const data = {
     version: 4,
-    state, hamster, foodOnGround, memorial,
+    state, hedgehog, foodOnGround, memorial,
     lastTimestamp: Date.now(),
     selectedFoodIndex, wheelAngle,
   };
-  try { localStorage.setItem('hamstory', JSON.stringify(data)); }
+  try { localStorage.setItem('hedgehome', JSON.stringify(data)); }
   catch (e) { console.error('Local save error:', e); }
   if (window.creationStorage) {
-    try { await window.creationStorage.plain.setItem('hamstory', btoa(JSON.stringify(data))); }
+    try { await window.creationStorage.plain.setItem('hedgehome', btoa(JSON.stringify(data))); }
     catch (e) { console.error('Save error:', e); }
   }
 }
@@ -147,45 +147,46 @@ async function loadGame() {
   let data = null;
   if (window.creationStorage) {
     try {
-      const stored = await window.creationStorage.plain.getItem('hamstory');
+      const stored = await window.creationStorage.plain.getItem('hedgehome') ||
+        await window.creationStorage.plain.getItem('hamstory');
       if (stored) data = JSON.parse(atob(stored));
     } catch (e) { console.error('Load error:', e); }
   }
   if (!data) {
     try {
-      const stored = localStorage.getItem('hamstory');
+      const stored = localStorage.getItem('hedgehome') || localStorage.getItem('hamstory');
       if (stored) data = JSON.parse(stored);
     } catch (e) { console.error('Local save error:', e); }
   }
   if (data) {
     state = Object.values(STATES).includes(data.state) ? data.state : STATES.ADOPT;
-    hamster = data.hamster;
+    hedgehog = data.hedgehog || data.hamster;
     foodOnGround = (data.foodOnGround || data.foodQueue || []).map(food => ({ ageMinutes: 0, ...food }));
     memorial = data.memorial || { legends: { oldest: null, heaviest: null, longestRunner: null }, lastFive: [] };
     selectedFoodIndex = data.selectedFoodIndex || 0;
     lastTimestamp = data.lastTimestamp || Date.now();
     wheelAngle = data.wheelAngle || 0;
-    if (hamster) {
+    if (hedgehog) {
       // v3 measured age in accelerated 60-tick days. Preserve the same age in days.
-      if ((data.version || 3) < 4) hamster.metrics.ageTicks *= 24;
-      hamster.posX = clampFloorX(Number.isFinite(hamster.posX) ? hamster.posX : 120);
-      hamster.targetX = clampFloorX(Number.isFinite(hamster.targetX) ? hamster.targetX : hamster.posX);
-      hamster.wheelPhase ||= null;
-      hamster.appearance ||= stableAppearanceFor(hamster);
-      if (!Number.isInteger(memorial.lastLookIndex)) memorial.lastLookIndex = hamster.appearance.lookIndex;
+      if ((data.version || 3) < 4) hedgehog.metrics.ageTicks *= 24;
+      hedgehog.posX = clampFloorX(Number.isFinite(hedgehog.posX) ? hedgehog.posX : 120);
+      hedgehog.targetX = clampFloorX(Number.isFinite(hedgehog.targetX) ? hedgehog.targetX : hedgehog.posX);
+      hedgehog.wheelPhase ||= null;
+      hedgehog.appearance ||= stableAppearanceFor(hedgehog);
+      if (!Number.isInteger(memorial.lastLookIndex)) memorial.lastLookIndex = hedgehog.appearance.lookIndex;
     }
-    if (state === STATES.LIVING && hamster && hamster.alive) simulateOffline();
-    else if (state === STATES.LIVING && (!hamster || !hamster.alive)) state = STATES.ADOPT;
+    if (state === STATES.LIVING && hedgehog && hedgehog.alive) simulateOffline();
+    else if (state === STATES.LIVING && (!hedgehog || !hedgehog.alive)) state = STATES.ADOPT;
   }
 }
 
 // ============================================================
-// HAMSTER CREATION
+// HEDGEHOG CREATION
 // ============================================================
 
-function createHamster(name) {
+function createHedgehog(name) {
   const previousLook = Number.isInteger(memorial.lastLookIndex) ? memorial.lastLookIndex : -1;
-  const lookIndex = (previousLook + 1) % HAMSTER_LOOKS.length;
+  const lookIndex = (previousLook + 1) % HEDGEHOG_LOOKS.length;
   memorial.lastLookIndex = lookIndex;
   return {
     name,
@@ -207,17 +208,17 @@ function createHamster(name) {
     alive: true,
     facing: 1, // 1=right, -1=left
     wheelPhase: null,
-    appearance: { ...HAMSTER_LOOKS[lookIndex], lookIndex },
+    appearance: { ...HEDGEHOG_LOOKS[lookIndex], lookIndex },
   };
 }
 
 function stableAppearanceFor(h) {
   if (h?.appearance) return h.appearance;
-  const source = `${h?.name || 'HAMSTER'}:${h?.born || 0}`;
+  const source = `${h?.name || 'HEDGEHOG'}:${h?.born || 0}`;
   let hash = 0;
   for (let i = 0; i < source.length; i++) hash = ((hash << 5) - hash + source.charCodeAt(i)) | 0;
-  const lookIndex = Math.abs(hash) % HAMSTER_LOOKS.length;
-  return { ...HAMSTER_LOOKS[lookIndex], lookIndex };
+  const lookIndex = Math.abs(hash) % HEDGEHOG_LOOKS.length;
+  return { ...HEDGEHOG_LOOKS[lookIndex], lookIndex };
 }
 
 function clampFloorX(x) {
@@ -236,14 +237,14 @@ function getLifeStage(h) {
 // ============================================================
 
 function simulateTick(timeScaleMinutes = ACTIVE_MINUTES_PER_TICK, offline = false) {
-  if (!hamster || !hamster.alive) return;
+  if (!hedgehog || !hedgehog.alive) return;
 
-  hamster.metrics.ageTicks += timeScaleMinutes;
-  const ageDays = hamster.metrics.ageTicks / DAY_TICKS;
-  hamster.lifeStage = getLifeStage(hamster);
+  hedgehog.metrics.ageTicks += timeScaleMinutes;
+  const ageDays = hedgehog.metrics.ageTicks / DAY_TICKS;
+  hedgehog.lifeStage = getLifeStage(hedgehog);
 
-  hamster.metrics.hunger += 0.03 * hamster.traits.metabolism * timeScaleMinutes;
-  hamster.metrics.thirst += 0.035 * timeScaleMinutes;
+  hedgehog.metrics.hunger += 0.03 * hedgehog.traits.metabolism * timeScaleMinutes;
+  hedgehog.metrics.thirst += 0.035 * timeScaleMinutes;
 
   // Food ages in real-world minutes. Older pieces visibly dull before disappearing.
   for (let i = foodOnGround.length - 1; i >= 0; i--) {
@@ -251,164 +252,164 @@ function simulateTick(timeScaleMinutes = ACTIVE_MINUTES_PER_TICK, offline = fals
     food.ageMinutes = (food.ageMinutes || 0) + timeScaleMinutes;
     if (food.ageMinutes >= FOOD_TYPES[food.type].decayMinutes) {
       foodOnGround.splice(i, 1);
-      if (i === 0 && hamster.activity === ACTIVITIES.EATING) {
-        hamster.activity = ACTIVITIES.IDLE;
-        hamster.activityTimer = 4;
-        hamster.targetX = clampFloorX(hamster.posX);
+      if (i === 0 && hedgehog.activity === ACTIVITIES.EATING) {
+        hedgehog.activity = ACTIVITIES.IDLE;
+        hedgehog.activityTimer = 4;
+        hedgehog.targetX = clampFloorX(hedgehog.posX);
       }
     }
   }
 
   // FIFO eating: approach the oldest piece, settle, then visibly nibble it.
-  if (hamster.metrics.hunger > 25 && foodOnGround.length > 0 &&
-      hamster.activity !== ACTIVITIES.RUNNING && hamster.activity !== ACTIVITIES.DRINKING) {
-    if (hamster.activity !== ACTIVITIES.EATING) {
-      hamster.activity = ACTIVITIES.EATING;
-      hamster.activityTimer = 18;
-      hamster.wheelPhase = null;
-      hamster.targetX = clampFloorX(foodOnGround[0].x);
+  if (hedgehog.metrics.hunger > 25 && foodOnGround.length > 0 &&
+      hedgehog.activity !== ACTIVITIES.RUNNING && hedgehog.activity !== ACTIVITIES.DRINKING) {
+    if (hedgehog.activity !== ACTIVITIES.EATING) {
+      hedgehog.activity = ACTIVITIES.EATING;
+      hedgehog.activityTimer = 18;
+      hedgehog.wheelPhase = null;
+      hedgehog.targetX = clampFloorX(foodOnGround[0].x);
     }
   }
 
-  if (hamster.activity === ACTIVITIES.EATING && foodOnGround.length > 0 &&
-      Math.abs(hamster.posX - foodOnGround[0].x) < 9) {
+  if (hedgehog.activity === ACTIVITIES.EATING && foodOnGround.length > 0 &&
+      Math.abs(hedgehog.posX - foodOnGround[0].x) < 9) {
     const food = foodOnGround[0];
     food.remaining -= 0.22;
-    hamster.metrics.hunger = Math.max(0, hamster.metrics.hunger - FOOD_TYPES[food.type].nutrition * 0.16);
-    hamster.metrics.thirst = Math.max(0, hamster.metrics.thirst - FOOD_TYPES[food.type].hydration * 0.12);
+    hedgehog.metrics.hunger = Math.max(0, hedgehog.metrics.hunger - FOOD_TYPES[food.type].nutrition * 0.16);
+    hedgehog.metrics.thirst = Math.max(0, hedgehog.metrics.thirst - FOOD_TYPES[food.type].hydration * 0.12);
     const massGain = FOOD_TYPES[food.type].nutrition * 0.02;
-    hamster.metrics.bodyMass += massGain * (hamster.lifeStage === LIFE_STAGES.JUVENILE ? 1.5 : 0.5);
+    hedgehog.metrics.bodyMass += massGain * (hedgehog.lifeStage === LIFE_STAGES.JUVENILE ? 1.5 : 0.5);
     if (food.remaining <= 0) {
       foodOnGround.shift();
-      hamster.activity = ACTIVITIES.IDLE;
-      hamster.activityTimer = 6;
-      hamster.targetX = clampFloorX(hamster.posX);
+      hedgehog.activity = ACTIVITIES.IDLE;
+      hedgehog.activityTimer = 6;
+      hedgehog.targetX = clampFloorX(hedgehog.posX);
     }
     eatingAnim++;
   }
 
-  if (hamster.metrics.thirst > 50 && hamster.activity !== ACTIVITIES.EATING && hamster.activity !== ACTIVITIES.RUNNING) {
-    if (hamster.activity !== ACTIVITIES.DRINKING) {
-      hamster.activity = ACTIVITIES.DRINKING;
-      hamster.activityTimer = 10;
-      hamster.wheelPhase = null;
-      hamster.targetX = HABITAT.waterX;
+  if (hedgehog.metrics.thirst > 50 && hedgehog.activity !== ACTIVITIES.EATING && hedgehog.activity !== ACTIVITIES.RUNNING) {
+    if (hedgehog.activity !== ACTIVITIES.DRINKING) {
+      hedgehog.activity = ACTIVITIES.DRINKING;
+      hedgehog.activityTimer = 10;
+      hedgehog.wheelPhase = null;
+      hedgehog.targetX = HABITAT.waterX;
     }
-    if (Math.abs(hamster.posX - HABITAT.waterX) < 7) hamster.metrics.thirst = Math.max(0, hamster.metrics.thirst - 3);
+    if (Math.abs(hedgehog.posX - HABITAT.waterX) < 7) hedgehog.metrics.thirst = Math.max(0, hedgehog.metrics.thirst - 3);
   }
 
-  const atTarget = Math.abs(hamster.posX - hamster.targetX) < 8;
-  if (hamster.activity === ACTIVITIES.RUNNING) {
-    if (!hamster.wheelPhase) hamster.wheelPhase = 'approach';
-    if (hamster.wheelPhase === 'approach' && Math.abs(hamster.posX - HABITAT.wheelEntryX) < 4) {
-      hamster.wheelPhase = 'climb';
-      hamster.targetX = HABITAT.wheelCenterX;
-    } else if (hamster.wheelPhase === 'climb' && Math.abs(hamster.posX - HABITAT.wheelCenterX) < 4) {
-      hamster.wheelPhase = 'run';
-      hamster.activityTimer = 22 + Math.floor(Math.random() * 28);
-    } else if (hamster.wheelPhase === 'run') {
-      const speed = 0.5 + hamster.traits.wheelEnthusiasm * 0.5;
-      hamster.metrics.wheelDistance += speed;
-      hamster.metrics.bodyMass = Math.max(15, hamster.metrics.bodyMass - 0.002 * timeScaleMinutes);
-      hamster.metrics.hunger += 0.012 * timeScaleMinutes;
-      hamster.activityTimer--;
-      if (hamster.activityTimer <= 0) {
-        hamster.wheelPhase = 'exit';
-        hamster.targetX = HABITAT.wheelEntryX;
+  const atTarget = Math.abs(hedgehog.posX - hedgehog.targetX) < 8;
+  if (hedgehog.activity === ACTIVITIES.RUNNING) {
+    if (!hedgehog.wheelPhase) hedgehog.wheelPhase = 'approach';
+    if (hedgehog.wheelPhase === 'approach' && Math.abs(hedgehog.posX - HABITAT.wheelEntryX) < 4) {
+      hedgehog.wheelPhase = 'climb';
+      hedgehog.targetX = HABITAT.wheelCenterX;
+    } else if (hedgehog.wheelPhase === 'climb' && Math.abs(hedgehog.posX - HABITAT.wheelCenterX) < 4) {
+      hedgehog.wheelPhase = 'run';
+      hedgehog.activityTimer = 22 + Math.floor(Math.random() * 28);
+    } else if (hedgehog.wheelPhase === 'run') {
+      const speed = 0.5 + hedgehog.traits.wheelEnthusiasm * 0.5;
+      hedgehog.metrics.wheelDistance += speed;
+      hedgehog.metrics.bodyMass = Math.max(15, hedgehog.metrics.bodyMass - 0.002 * timeScaleMinutes);
+      hedgehog.metrics.hunger += 0.012 * timeScaleMinutes;
+      hedgehog.activityTimer--;
+      if (hedgehog.activityTimer <= 0) {
+        hedgehog.wheelPhase = 'exit';
+        hedgehog.targetX = HABITAT.wheelEntryX;
       }
-    } else if (hamster.wheelPhase === 'exit' && Math.abs(hamster.posX - HABITAT.wheelEntryX) < 4) {
-      hamster.wheelPhase = null;
-      hamster.activity = ACTIVITIES.IDLE;
-      hamster.activityTimer = 8;
-      hamster.targetX = clampFloorX(66 + Math.random() * 42);
+    } else if (hedgehog.wheelPhase === 'exit' && Math.abs(hedgehog.posX - HABITAT.wheelEntryX) < 4) {
+      hedgehog.wheelPhase = null;
+      hedgehog.activity = ACTIVITIES.IDLE;
+      hedgehog.activityTimer = 8;
+      hedgehog.targetX = clampFloorX(66 + Math.random() * 42);
     }
   } else {
     // Non-wheel activity time begins only after physical arrival.
-    if (atTarget || hamster.activity === ACTIVITIES.IDLE || hamster.activity === ACTIVITIES.GROOMING) hamster.activityTimer--;
-    if (hamster.activityTimer <= 0) chooseNextActivity();
+    if (atTarget || hedgehog.activity === ACTIVITIES.IDLE || hedgehog.activity === ACTIVITIES.GROOMING) hedgehog.activityTimer--;
+    if (hedgehog.activityTimer <= 0) chooseNextActivity();
   }
 
-  if (hamster.activity === ACTIVITIES.GROOMING) {
+  if (hedgehog.activity === ACTIVITIES.GROOMING) {
     groomAnim++;
   }
 
   // Update facing direction
-  if (hamster.targetX > hamster.posX + 3) hamster.facing = 1;
-  else if (hamster.targetX < hamster.posX - 3) hamster.facing = -1;
+  if (hedgehog.targetX > hedgehog.posX + 3) hedgehog.facing = 1;
+  else if (hedgehog.targetX < hedgehog.posX - 3) hedgehog.facing = -1;
 
   let healthDelta = 0;
-  if (hamster.metrics.hunger > 80) healthDelta -= 0.018 * timeScaleMinutes;
-  if (hamster.metrics.hunger > 95) healthDelta -= 0.025 * timeScaleMinutes;
-  if (hamster.metrics.thirst > 80) healthDelta -= 0.02 * timeScaleMinutes;
-  if (hamster.metrics.hunger < 40 && hamster.metrics.thirst < 40) healthDelta += 0.012 * hamster.traits.resilience * timeScaleMinutes;
-  if (hamster.metrics.bodyMass < 18) healthDelta -= 0.012 * timeScaleMinutes;
-  if (hamster.metrics.bodyMass > 60) healthDelta -= 0.008 * timeScaleMinutes;
-  const lifePercent = ageDays / hamster.traits.lifespan;
+  if (hedgehog.metrics.hunger > 80) healthDelta -= 0.018 * timeScaleMinutes;
+  if (hedgehog.metrics.hunger > 95) healthDelta -= 0.025 * timeScaleMinutes;
+  if (hedgehog.metrics.thirst > 80) healthDelta -= 0.02 * timeScaleMinutes;
+  if (hedgehog.metrics.hunger < 40 && hedgehog.metrics.thirst < 40) healthDelta += 0.012 * hedgehog.traits.resilience * timeScaleMinutes;
+  if (hedgehog.metrics.bodyMass < 18) healthDelta -= 0.012 * timeScaleMinutes;
+  if (hedgehog.metrics.bodyMass > 60) healthDelta -= 0.008 * timeScaleMinutes;
+  const lifePercent = ageDays / hedgehog.traits.lifespan;
   if (lifePercent > 0.8) healthDelta -= 0.004 * (lifePercent - 0.8) * 10 * timeScaleMinutes;
 
-  hamster.metrics.health = Math.max(0, Math.min(100, hamster.metrics.health + healthDelta));
-  hamster.metrics.hunger = Math.min(100, hamster.metrics.hunger);
-  hamster.metrics.thirst = Math.min(100, hamster.metrics.thirst);
-  hamster.metrics.bodyMass = Math.max(10, Math.min(80, hamster.metrics.bodyMass));
+  hedgehog.metrics.health = Math.max(0, Math.min(100, hedgehog.metrics.health + healthDelta));
+  hedgehog.metrics.hunger = Math.min(100, hedgehog.metrics.hunger);
+  hedgehog.metrics.thirst = Math.min(100, hedgehog.metrics.thirst);
+  hedgehog.metrics.bodyMass = Math.max(10, Math.min(80, hedgehog.metrics.bodyMass));
 
-  if (hamster.metrics.health <= 0) triggerDeath(ageDays);
-  else if (ageDays >= hamster.traits.lifespan) { hamster.metrics.health = 0; triggerDeath(ageDays); }
+  if (hedgehog.metrics.health <= 0) triggerDeath(ageDays);
+  else if (ageDays >= hedgehog.traits.lifespan) { hedgehog.metrics.health = 0; triggerDeath(ageDays); }
 
   // Offline simulation still resolves travel; live travel is frame-synchronized.
-  if (offline && Math.abs(hamster.posX - hamster.targetX) > 2) {
-    const direction = Math.sign(hamster.targetX - hamster.posX);
-    hamster.posX += direction * Math.min(8, Math.abs(hamster.targetX - hamster.posX));
+  if (offline && Math.abs(hedgehog.posX - hedgehog.targetX) > 2) {
+    const direction = Math.sign(hedgehog.targetX - hedgehog.posX);
+    hedgehog.posX += direction * Math.min(8, Math.abs(hedgehog.targetX - hedgehog.posX));
   }
-  hamster.posX = clampFloorX(hamster.posX);
-  hamster.targetX = clampFloorX(hamster.targetX);
+  hedgehog.posX = clampFloorX(hedgehog.posX);
+  hedgehog.targetX = clampFloorX(hedgehog.targetX);
 
-  if (!offline && Math.floor(hamster.metrics.ageTicks * 60) % 30 === 0) saveGame();
+  if (!offline && Math.floor(hedgehog.metrics.ageTicks * 60) % 30 === 0) saveGame();
 }
 
 function chooseNextActivity() {
   const r = Math.random();
-  const wc = hamster.traits.wheelEnthusiasm * 0.3;
-  if (hamster.metrics.hunger > 25 && foodOnGround.length > 0) {
-    hamster.activity = ACTIVITIES.EATING;
-    hamster.activityTimer = 18;
-    hamster.wheelPhase = null;
-    hamster.targetX = clampFloorX(foodOnGround[0].x);
-  } else if (r < wc && hamster.lifeStage !== LIFE_STAGES.SENIOR) {
-    hamster.activity = ACTIVITIES.RUNNING;
-    hamster.activityTimer = 0;
-    hamster.wheelPhase = 'approach';
-    hamster.targetX = HABITAT.wheelEntryX;
+  const wc = hedgehog.traits.wheelEnthusiasm * 0.3;
+  if (hedgehog.metrics.hunger > 25 && foodOnGround.length > 0) {
+    hedgehog.activity = ACTIVITIES.EATING;
+    hedgehog.activityTimer = 18;
+    hedgehog.wheelPhase = null;
+    hedgehog.targetX = clampFloorX(foodOnGround[0].x);
+  } else if (r < wc && hedgehog.lifeStage !== LIFE_STAGES.SENIOR) {
+    hedgehog.activity = ACTIVITIES.RUNNING;
+    hedgehog.activityTimer = 0;
+    hedgehog.wheelPhase = 'approach';
+    hedgehog.targetX = HABITAT.wheelEntryX;
   } else if (r < wc + 0.15) {
-    hamster.activity = ACTIVITIES.SLEEPING;
-    hamster.activityTimer = 30 + Math.floor(Math.random() * 30);
-    hamster.wheelPhase = null;
-    hamster.targetX = HABITAT.hideoutX;
+    hedgehog.activity = ACTIVITIES.SLEEPING;
+    hedgehog.activityTimer = 30 + Math.floor(Math.random() * 30);
+    hedgehog.wheelPhase = null;
+    hedgehog.targetX = HABITAT.hideoutX;
   } else if (r < wc + 0.25) {
-    hamster.activity = ACTIVITIES.HIDING;
-    hamster.activityTimer = 15 + Math.floor(Math.random() * 20);
-    hamster.wheelPhase = null;
-    hamster.targetX = HABITAT.hideoutX;
+    hedgehog.activity = ACTIVITIES.HIDING;
+    hedgehog.activityTimer = 15 + Math.floor(Math.random() * 20);
+    hedgehog.wheelPhase = null;
+    hedgehog.targetX = HABITAT.hideoutX;
   } else if (r < wc + 0.35) {
-    hamster.activity = ACTIVITIES.GROOMING;
-    hamster.activityTimer = 8 + Math.floor(Math.random() * 12);
+    hedgehog.activity = ACTIVITIES.GROOMING;
+    hedgehog.activityTimer = 8 + Math.floor(Math.random() * 12);
     groomAnim = 0;
   } else {
-    hamster.activity = ACTIVITIES.IDLE;
-    hamster.activityTimer = 10 + Math.floor(Math.random() * 20);
-    hamster.wheelPhase = null;
-    hamster.targetX = clampFloorX(62 + Math.floor(Math.random() * 106));
+    hedgehog.activity = ACTIVITIES.IDLE;
+    hedgehog.activityTimer = 10 + Math.floor(Math.random() * 20);
+    hedgehog.wheelPhase = null;
+    hedgehog.targetX = clampFloorX(62 + Math.floor(Math.random() * 106));
   }
 }
 
 function triggerDeath(ageDays) {
-  hamster.alive = false;
-  if (ageDays >= hamster.traits.lifespan * 0.9) deathCause = 'Passed peacefully of old age';
-  else if (hamster.metrics.hunger >= 95) deathCause = 'Passed away from malnutrition';
-  else if (hamster.metrics.thirst >= 95) deathCause = 'Passed away from dehydration';
-  else if (hamster.metrics.bodyMass < 15) deathCause = 'Too frail to continue';
+  hedgehog.alive = false;
+  if (ageDays >= hedgehog.traits.lifespan * 0.9) deathCause = 'Passed peacefully of old age';
+  else if (hedgehog.metrics.hunger >= 95) deathCause = 'Passed away from malnutrition';
+  else if (hedgehog.metrics.thirst >= 95) deathCause = 'Passed away from dehydration';
+  else if (hedgehog.metrics.bodyMass < 15) deathCause = 'Too frail to continue';
   else deathCause = 'Crossed the rainbow bridge';
 
-  const record = { name: hamster.name, ageDays: Math.floor(ageDays), maxMass: hamster.metrics.bodyMass, wheelDist: Math.floor(hamster.metrics.wheelDistance) };
+  const record = { name: hedgehog.name, ageDays: Math.floor(ageDays), maxMass: hedgehog.metrics.bodyMass, wheelDist: Math.floor(hedgehog.metrics.wheelDistance) };
   if (!memorial.legends.oldest || record.ageDays > memorial.legends.oldest.ageDays) memorial.legends.oldest = record;
   if (!memorial.legends.heaviest || record.maxMass > memorial.legends.heaviest.maxMass) memorial.legends.heaviest = record;
   if (!memorial.legends.longestRunner || record.wheelDist > memorial.legends.longestRunner.wheelDist) memorial.legends.longestRunner = record;
@@ -428,12 +429,12 @@ function simulateOffline() {
     const minsPassed = Math.floor((elapsedMs % 3600000) / 60000);
     for (let i = 0; i < elapsedTicks; i++) {
       simulateTick(1, true);
-      if (!hamster.alive) break;
+      if (!hedgehog.alive) break;
     }
-    if (hamster.alive) {
+    if (hedgehog.alive) {
       offlineMsg = hoursPassed > 0
-        ? `${hamster.name} lived ${hoursPassed}h ${minsPassed}m while away`
-        : `${hamster.name} lived ${minsPassed}m while away`;
+        ? `${hedgehog.name} lived ${hoursPassed}h ${minsPassed}m while away`
+        : `${hedgehog.name} lived ${minsPassed}m while away`;
       offlineMsgTimer = 150;
     }
   }
@@ -589,8 +590,9 @@ function drawMemorialMarks() {
   const labels = ['OLDEST','HEAVY','RUNNER'];
   for (let i = 0; i < 3; i++) {
     const x = 16 + i * 31;
-    ellipse(x + 9, 38, 7, 6, '#b96b30'); ellipse(x + 9, 39, 4, 3, '#f7dfb8');
-    px(x + 6, 35, 2, 2, '#241b15'); px(x + 11, 35, 2, 2, '#241b15');
+    px(x + 3, 34, 2, 5, '#5b4638'); px(x + 5, 32, 2, 7, '#6d5441'); px(x + 7, 31, 2, 8, '#4d3a30');
+    ellipse(x + 9, 38, 6, 5, '#7b624e'); ellipse(x + 13, 39, 4, 3, '#e4c9a5');
+    px(x + 14, 37, 1, 1, '#241b15'); px(x + 17, 39, 1, 1, '#241b15');
     ctx.font = '5px monospace'; ctx.fillStyle = '#66503b'; ctx.fillText(labels[i], x, 48);
     ctx.fillStyle = '#3e3025'; ctx.fillText(records[i]?.name || '—', x, 55);
   }
@@ -605,9 +607,9 @@ function drawMemorialMarks() {
     ctx.strokeStyle = '#9b4f3c'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(familyX, y + 3); ctx.lineTo(familyX + ctx.measureText(name).width, y + 3); ctx.stroke();
   });
-  if (hamster?.alive) {
+  if (hedgehog?.alive) {
     ctx.font = 'bold 5px monospace'; ctx.fillStyle = '#2f241c';
-    ctx.fillText(hamster.name.slice(0, 9), familyX, 74);
+    ctx.fillText(hedgehog.name.slice(0, 9), familyX, 74);
   }
 }
 
@@ -725,7 +727,7 @@ function drawGroundFood() {
   // Every dropped item remains visible. Older pieces settle lower, producing a pile.
   for (let i = 0; i < foodOnGround.length; i++) {
     const food = foodOnGround[i];
-    if (hamster?.activity === ACTIVITIES.EATING && i === 0 && Math.abs(hamster.posX - food.x) < 9) continue;
+    if (hedgehog?.activity === ACTIVITIES.EATING && i === 0 && Math.abs(hedgehog.posX - food.x) < 9) continue;
     const scale = FOOD_TYPES[food.type].worldScale * (0.8 + food.remaining / food.maxAmount * 0.2);
     const y = food.y - Math.floor(i / 7) * 2;
     const ageRatio = Math.min(1, (food.ageMinutes || 0) / FOOD_TYPES[food.type].decayMinutes);
@@ -772,51 +774,156 @@ function drawFallingFood() {
 }
 
 // ============================================================
-// HAMSTER CHARACTER - Detailed, expressive, recognizable
+// HEDGEHOG CHARACTER - Detailed, expressive, recognizable
 // ============================================================
 
-function drawHamster() {
-  if (!hamster || !hamster.alive) return;
-  const a = stableAppearanceFor(hamster);
-  const wheelPhase = hamster.activity === ACTIVITIES.RUNNING ? hamster.wheelPhase : null;
+function drawQuillBody(x, y, r, a) {
+  ctx.fillStyle = a.dark;
+  ctx.beginPath();
+  ctx.moveTo(x - r * 1.02, y + r * .35);
+  for (let i = 0; i <= 14; i++) {
+    const angle = Math.PI + i * Math.PI / 14;
+    const spike = i % 2 ? 1.18 : 1.02;
+    ctx.lineTo(x + Math.cos(angle) * r * spike, y + Math.sin(angle) * r * .78 * spike);
+  }
+  ctx.lineTo(x + r * 1.02, y + r * .38); ctx.closePath(); ctx.fill();
+  ellipse(x, y + r * .03, r * .94, r * .6, a.coat);
+  ctx.strokeStyle = a.light; ctx.lineWidth = 1;
+  for (let i = -5; i <= 5; i++) {
+    ctx.beginPath(); ctx.moveTo(x + i * r * .13, y + r * .22);
+    ctx.lineTo(x + i * r * .16, y - r * (.42 + (Math.abs(i) % 2) * .12)); ctx.stroke();
+  }
+}
+
+function drawHedgehogCreature(x, groundY, r, f, a, wheelPhase) {
   const inWheel = wheelPhase === 'run';
-  const x = inWheel ? HABITAT.wheelCenterX : Math.floor(clampFloorX(hamster.posX));
+  const moving = Math.abs(hedgehog.posX - hedgehog.targetX) > 2;
+  const eating = hedgehog.activity === ACTIVITIES.EATING && foodOnGround[0] &&
+    Math.abs(hedgehog.posX - foodOnGround[0].x) < 9;
+
+  if (hedgehog.activity === ACTIVITIES.HIDING && hedgehog.posX < 50) {
+    drawQuillBody(47, groundY - 8, r * .52, a);
+    ellipse(52, groundY - 8, 7, 6, a.light); ellipse(57, groundY - 7, 4, 2.5, a.belly);
+    ellipse(60, groundY - 7, 1.8, 1.5, '#241812'); ellipse(54, groundY - 10, 1.8, 2.2, C.hedgeEye);
+    return;
+  }
+
+  if (hedgehog.activity === ACTIVITIES.SLEEPING && Math.abs(hedgehog.posX - HABITAT.hideoutX) < 6) {
+    const breathe = Math.sin(animFrame * .055) * .8;
+    drawQuillBody(x, groundY - 10, r * .88 + breathe, a);
+    ellipse(x + f * 8, groundY - 7, 9, 7, a.light);
+    ellipse(x + f * 13, groundY - 6, 4, 2.5, a.belly);
+    ellipse(x + f * 16, groundY - 6, 1.7, 1.4, '#241812');
+    ctx.strokeStyle = '#33251d'; ctx.lineWidth = 1.2; ctx.beginPath();
+    ctx.arc(x + f * 9, groundY - 9, 2, .2, Math.PI - .2); ctx.stroke();
+    ctx.font = 'bold 9px monospace'; ctx.fillStyle = C.teal; ctx.globalAlpha = .65;
+    ctx.fillText('z', x + r, groundY - r - 3); ctx.globalAlpha = 1;
+    return;
+  }
+
+  if (hedgehog.activity === ACTIVITIES.DRINKING && Math.abs(hedgehog.posX - HABITAT.waterX) < 7) {
+    const sip = Math.sin(animFrame * .3) * .8;
+    drawQuillBody(x - 12, groundY - 11, r * .82, a);
+    ctx.fillStyle = a.light; ctx.beginPath();
+    ctx.moveTo(x - 7, groundY - 16); ctx.lineTo(x - 3, 177 + sip); ctx.lineTo(x + 4, 184 + sip); ctx.lineTo(x + 2, groundY - 8); ctx.closePath(); ctx.fill();
+    ellipse(x, 176 + sip, 8, 7, a.light); ellipse(x, 166 + sip, 2, 1.6, '#241812');
+    ellipse(x - 3, 175 + sip, 2, 2.4, C.hedgeEye); ellipse(x - 7, 171 + sip, 3, 4, C.hedgeEar);
+    ellipse(x - 8, groundY - 2, 4, 2, a.belly); ellipse(x + 1, groundY - 2, 4, 2, a.belly);
+    if (animFrame % 22 < 8) ellipse(x, 163, 1, 2, '#8ccbd0');
+    return;
+  }
+
+  const running = inWheel;
+  const phase = running ? animFrame * .72 : walkPhase;
+  const bodyY = groundY - r * (running ? .82 : .72) + (moving || running ? Math.sin(phase * 2) * .3 : Math.sin(animFrame * .05) * .35);
+  ctx.globalAlpha = .2; ellipse(x, groundY + 1, r * .72, 2.2, '#3e2c20'); ctx.globalAlpha = 1;
+
+  function hedgeLeg(hipX, legPhase, far) {
+    const reach = -Math.cos(legPhase) * (running ? 5 : 3.6);
+    const lift = Math.max(0, Math.sin(legPhase)) * (running ? 3.4 : 2.4);
+    const toeX = hipX + f * reach, toeY = groundY - 1 - lift;
+    const color = far ? a.dark : a.belly;
+    ctx.strokeStyle = color; ctx.lineWidth = far ? 2 : 2.7; ctx.beginPath();
+    ctx.moveTo(hipX, bodyY + r * .3); ctx.lineTo(hipX + f * reach * .3, bodyY + r * .55); ctx.lineTo(toeX, toeY); ctx.stroke();
+    ellipse(toeX + f * 2, toeY, 3.5, 1.6, color);
+    px(toeX + f * 4.5 - (f < 0 ? 1 : 0), toeY, 1, 1, C.hedgeToe);
+  }
+
+  const rear = x - f * r * .43, front = x + f * r * .38;
+  hedgeLeg(rear + f * 3, phase + Math.PI, true);
+  hedgeLeg(front - f * 3, phase + Math.PI * 1.5, true);
+  drawQuillBody(x - f * 2, bodyY, r, a);
+
+  const headX = x + f * r * .63;
+  const headY = bodyY + (eating ? 5 + Math.sin(animFrame * .5) : 1);
+  ellipse(headX, headY, r * .43, r * .38, a.light);
+  ctx.fillStyle = a.light; ctx.beginPath();
+  ctx.moveTo(headX + f * r * .2, headY - r * .18);
+  ctx.lineTo(headX + f * r * .85, headY + r * .08);
+  ctx.lineTo(headX + f * r * .2, headY + r * .25); ctx.closePath(); ctx.fill();
+  ellipse(headX + f * r * .85, headY + r * .08, 2.2, 1.8, '#241812');
+  ellipse(headX + f * 2, headY - 2, 2.3, 2.8, C.hedgeEye); px(headX + f * 2, headY - 4, 1, 1, '#fff');
+  ellipse(headX - f * 3, headY - r * .34, 3.5, 4.2, a.light); ellipse(headX - f * 3, headY - r * .34, 2, 2.5, C.hedgeEar);
+  ctx.strokeStyle = 'rgba(70,55,45,.55)'; ctx.lineWidth = .6; ctx.beginPath();
+  ctx.moveTo(headX + f * 8, headY + 3); ctx.lineTo(headX + f * 18, headY);
+  ctx.moveTo(headX + f * 8, headY + 5); ctx.lineTo(headX + f * 18, headY + 6); ctx.stroke();
+
+  hedgeLeg(rear, phase, false);
+  hedgeLeg(front, phase + Math.PI * .5, false);
+
+  if (eating) {
+    const biteType = foodOnGround[0].type;
+    drawFoodSprite(biteType, headX + f * r * .8, headY + 5,
+      Math.min(1.1, FOOD_TYPES[biteType].worldScale * .62));
+    ellipse(headX + f * r * .55, headY + 6 + Math.sin(animFrame * .55), 2.5, 2, a.belly);
+  }
+}
+
+function drawHedgehog() {
+  if (!hedgehog || !hedgehog.alive) return;
+  const a = stableAppearanceFor(hedgehog);
+  const wheelPhase = hedgehog.activity === ACTIVITIES.RUNNING ? hedgehog.wheelPhase : null;
+  const inWheel = wheelPhase === 'run';
+  const x = inWheel ? HABITAT.wheelCenterX : Math.floor(clampFloorX(hedgehog.posX));
   let groundY = inWheel ? 177 : 218;
   if (wheelPhase === 'climb') {
-    const p = Math.max(0, Math.min(1, (hamster.posX - HABITAT.wheelEntryX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
+    const p = Math.max(0, Math.min(1, (hedgehog.posX - HABITAT.wheelEntryX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
     groundY = 218 - p * 41;
   } else if (wheelPhase === 'exit') {
-    const p = Math.max(0, Math.min(1, (HABITAT.wheelCenterX - hamster.posX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
+    const p = Math.max(0, Math.min(1, (HABITAT.wheelCenterX - hedgehog.posX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
     groundY = 177 + p * 41;
   }
   
   // Size scaling
   let baseR = 16;
-  if (hamster.lifeStage === LIFE_STAGES.ADULT) baseR = 20;
-  if (hamster.lifeStage === LIFE_STAGES.SENIOR) baseR = 19;
-  const massScale = 0.8 + (hamster.metrics.bodyMass / 60) * 0.4;
+  if (hedgehog.lifeStage === LIFE_STAGES.ADULT) baseR = 20;
+  if (hedgehog.lifeStage === LIFE_STAGES.SENIOR) baseR = 19;
+  const massScale = 0.8 + (hedgehog.metrics.bodyMass / 60) * 0.4;
   const r = Math.floor(baseR * massScale);
-  const f = hamster.facing;
+  const f = hedgehog.facing;
+
+  drawHedgehogCreature(x, groundY, r, f, a, wheelPhase);
+  return;
 
   // Hiding - peek from hideout
-  if (hamster.activity === ACTIVITIES.HIDING && hamster.posX < 50) {
+  if (hedgehog.activity === ACTIVITIES.HIDING && hedgehog.posX < 50) {
     const peekX = 52;
     ellipse(peekX, groundY - r * 0.4, r * 0.4, r * 0.5, a.coat);
     // One eye peeking
-    ellipse(peekX + 3, groundY - r * 0.5, 2, 2.5, C.hamEye);
+    ellipse(peekX + 3, groundY - r * 0.5, 2, 2.5, C.hedgeEye);
     px(peekX + 3, groundY - r * 0.55, 1, 1, '#fff');
     // Ear
-    ellipse(peekX + 1, groundY - r * 0.8, 3, 4, C.hamPink);
+    ellipse(peekX + 1, groundY - r * 0.8, 3, 4, C.hedgeEar);
     return;
   }
   
   // Sleeping - curled ball
-  if (hamster.activity === ACTIVITIES.SLEEPING && Math.abs(hamster.posX - HABITAT.hideoutX) < 6) {
+  if (hedgehog.activity === ACTIVITIES.SLEEPING && Math.abs(hedgehog.posX - HABITAT.hideoutX) < 6) {
     const breathe = Math.sin(animFrame * 0.06) * 1.5;
     ellipse(x, groundY - r * 0.4, r * 1.1 + breathe, r * 0.6, a.coat);
     ellipse(x, groundY - r * 0.3, r * 0.7, r * 0.35, a.belly);
     // Closed eyes (curved lines)
-    ctx.strokeStyle = C.hamEye;
+    ctx.strokeStyle = C.hedgeEye;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(x - 4, groundY - r * 0.5, 2, 0.2, Math.PI - 0.2);
@@ -825,7 +932,7 @@ function drawHamster() {
     ctx.arc(x + 4, groundY - r * 0.5, 2, 0.2, Math.PI - 0.2);
     ctx.stroke();
     // Tiny ear
-    ellipse(x - r * 0.5, groundY - r * 0.7, 3, 4, C.hamPink);
+    ellipse(x - r * 0.5, groundY - r * 0.7, 3, 4, C.hedgeEar);
     // Zzz
     const zzOff = Math.sin(animFrame * 0.07) * 3;
     ctx.font = 'bold 10px monospace';
@@ -838,7 +945,7 @@ function drawHamster() {
     return;
   }
 
-  if (hamster.activity === ACTIVITIES.DRINKING && Math.abs(hamster.posX - HABITAT.waterX) < 7) {
+  if (hedgehog.activity === ACTIVITIES.DRINKING && Math.abs(hedgehog.posX - HABITAT.waterX) < 7) {
     drawDrinkingPose(HABITAT.waterX, r, a);
     return;
   }
@@ -846,14 +953,14 @@ function drawHamster() {
   // Floor locomotion uses a dedicated side-profile quadruped silhouette. Keeping
   // this separate prevents the round front-facing idle pose from reading as a shell.
   const floorWalking = !inWheel && (!wheelPhase || wheelPhase === 'approach') &&
-    Math.abs(hamster.posX - hamster.targetX) > 2;
+    Math.abs(hedgehog.posX - hedgehog.targetX) > 2;
   if (floorWalking) {
     drawWalkingPose(x, groundY, r, f, a);
     return;
   }
 
   // Position adjustments for running
-  const walking = Math.abs(hamster.posX - hamster.targetX) > 2 && !inWheel;
+  const walking = Math.abs(hedgehog.posX - hedgehog.targetX) > 2 && !inWheel;
   // Keep the torso planted. A tiny shoulder sway replaces the old swimming bounce.
   let dy = Math.sin(animFrame * 0.055) * 0.45;
   if (walking) dy += Math.sin(animFrame * 0.34) * 0.35;
@@ -879,8 +986,8 @@ function drawHamster() {
     const hipY = bodyY + r * .42;
     const footY = groundY - 1;
     const legs = [
-      { hip: x - f * r * .55, foot: x - f * r * .78 + nearReach, lift: nearLift, color: C.hamPaw },
-      { hip: x + f * r * .48, foot: x + f * r * .88 - nearReach, lift: farLift, color: C.hamPaw },
+      { hip: x - f * r * .55, foot: x - f * r * .78 + nearReach, lift: nearLift, color: C.hedgePaw },
+      { hip: x + f * r * .48, foot: x + f * r * .88 - nearReach, lift: farLift, color: C.hedgePaw },
       { hip: x - f * r * .38, foot: x - f * r * .66 + farReach, lift: farLift, color: '#d7aa82' },
       { hip: x + f * r * .34, foot: x + f * r * .72 - farReach, lift: nearLift, color: '#d7aa82' },
     ];
@@ -919,7 +1026,7 @@ function drawHamster() {
 
   // HEAD (slightly forward)
   const headX = x + f * r * 0.76;
-  const engagedEating = hamster.activity === ACTIVITIES.EATING && foodOnGround[0] && Math.abs(hamster.posX - foodOnGround[0].x) < 9;
+  const engagedEating = hedgehog.activity === ACTIVITIES.EATING && foodOnGround[0] && Math.abs(hedgehog.posX - foodOnGround[0].x) < 9;
   let headY = bodyY - r * 0.12;
   if (engagedEating) headY += 4 + Math.sin(animFrame * .55) * 1.5;
   const headR = r * 0.58;
@@ -937,15 +1044,15 @@ function drawHamster() {
   const earY = headY - headR * 0.6;
   // Left ear
   ellipse(headX - headR * 0.6, earY, 5, 6, a.coat);
-  ellipse(headX - headR * 0.6, earY, 3, 4, C.hamPink);
-  ellipse(headX - headR * 0.6, earY, 1.5, 2.5, C.hamPinkDark);
+  ellipse(headX - headR * 0.6, earY, 3, 4, C.hedgeEar);
+  ellipse(headX - headR * 0.6, earY, 1.5, 2.5, C.hedgeToe);
   // Right ear
   ellipse(headX + headR * 0.6, earY, 5, 6, a.coat);
-  ellipse(headX + headR * 0.6, earY, 3, 4, C.hamPink);
-  ellipse(headX + headR * 0.6, earY, 1.5, 2.5, C.hamPinkDark);
+  ellipse(headX + headR * 0.6, earY, 3, 4, C.hedgeEar);
+  ellipse(headX + headR * 0.6, earY, 1.5, 2.5, C.hedgeToe);
 
   // CHEEK POUCHES (puffy)
-  const cheekPuff = hamster.activity === ACTIVITIES.EATING ? 1.3 : 1;
+  const cheekPuff = hedgehog.activity === ACTIVITIES.EATING ? 1.3 : 1;
   ellipse(headX - headR * 0.55, headY + 2, 5 * cheekPuff, 4 * cheekPuff, a.cheek);
   ellipse(headX + headR * 0.55, headY + 2, 5 * cheekPuff, 4 * cheekPuff, a.cheek);
 
@@ -965,9 +1072,9 @@ function drawHamster() {
     px(headX + eyeSpacing + glance, eyeY - 2, 1, 1, '#fff7e5');
   }
 
-  // Projecting cream muzzle gives the face a recognizable hamster silhouette.
+  // Projecting cream muzzle gives the face a recognizable hedgehog silhouette.
   ellipse(headX + f * headR * 0.38, headY + headR * 0.28, 5, 4, a.belly);
-  ellipse(headX + f * headR * 0.65, headY + headR * 0.28, 2.2, 1.8, C.hamNose);
+  ellipse(headX + f * headR * 0.65, headY + headR * 0.28, 2.2, 1.8, C.hedgeNose);
   
   // MOUTH - tiny smile
   ctx.strokeStyle = a.dark;
@@ -1002,22 +1109,22 @@ function drawHamster() {
   // PAWS
   const pawY = groundY - 3 + dy;
   // Front paws (visible when idle/eating)
-  if (hamster.activity === ACTIVITIES.EATING || hamster.activity === ACTIVITIES.GROOMING) {
+  if (hedgehog.activity === ACTIVITIES.EATING || hedgehog.activity === ACTIVITIES.GROOMING) {
     const pawUp = Math.sin(animFrame * 0.4) * 2;
-    ellipse(headX - f * 5, bodyY + r * 0.42 + pawUp, 3, 3, C.hamPaw);
-    ellipse(headX - f * 10, bodyY + r * 0.42 - pawUp, 3, 3, C.hamPaw);
+    ellipse(headX - f * 5, bodyY + r * 0.42 + pawUp, 3, 3, C.hedgePaw);
+    ellipse(headX - f * 10, bodyY + r * 0.42 - pawUp, 3, 3, C.hedgePaw);
     // Tiny toes
-    px(x - 6, bodyY + r * 0.4 + pawUp + 1, 1, 1, C.hamPinkDark);
-    px(x + 5, bodyY + r * 0.4 - pawUp + 1, 1, 1, C.hamPinkDark);
+    px(x - 6, bodyY + r * 0.4 + pawUp + 1, 1, 1, C.hedgeToe);
+    px(x + 5, bodyY + r * 0.4 - pawUp + 1, 1, 1, C.hedgeToe);
   }
   // Stationary paws stay tucked beneath the body without pretending to walk.
-  if (!walking && hamster.activity !== ACTIVITIES.EATING && hamster.activity !== ACTIVITIES.GROOMING && !inWheel) {
-    ellipse(x - f * r * .62, pawY, 4, 2.2, C.hamPaw);
-    ellipse(x + f * r * .66, pawY, 4, 2.2, C.hamPaw);
+  if (!walking && hedgehog.activity !== ACTIVITIES.EATING && hedgehog.activity !== ACTIVITIES.GROOMING && !inWheel) {
+    ellipse(x - f * r * .62, pawY, 4, 2.2, C.hedgePaw);
+    ellipse(x + f * r * .66, pawY, 4, 2.2, C.hedgePaw);
   }
 
   // ACTIVITY-SPECIFIC ANIMATIONS
-  if (hamster.activity === ACTIVITIES.EATING && foodOnGround.length > 0) {
+  if (hedgehog.activity === ACTIVITIES.EATING && foodOnGround.length > 0) {
     // Holding food near mouth
     const bobble = Math.sin(animFrame * 0.6) * 1;
     const biteType = foodOnGround[0].type;
@@ -1029,7 +1136,7 @@ function drawHamster() {
     }
   }
   
-  if (hamster.activity === ACTIVITIES.GROOMING) {
+  if (hedgehog.activity === ACTIVITIES.GROOMING) {
     // Licking paw animation - sparkle
     if (groomAnim % 20 < 10) {
       ctx.fillStyle = '#fff';
@@ -1050,7 +1157,7 @@ function drawHamster() {
       const anchor = x + f * (fore ? 8 : -8) + (i % 2 ? 2 : -2);
       const reach = Math.cos(phase) * 5;
       const lift = Math.max(0, Math.sin(phase)) * 3.5;
-      const color = i % 2 ? '#d7aa82' : C.hamPaw;
+      const color = i % 2 ? '#d7aa82' : C.hedgePaw;
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
       ctx.moveTo(anchor, bodyY + r * .35);
       ctx.lineTo(anchor + f * reach, legY - lift);
@@ -1083,8 +1190,8 @@ function drawWalkingPose(x, groundY, r, f, a) {
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(kneeX, kneeY); ctx.lineTo(toeX, toeY); ctx.stroke();
     // Long axis and toe pixels always face the direction of travel.
     ellipse(toeX + f * 2, toeY, far ? 3.2 : 4, far ? 1.4 : 1.8, color);
-    px(toeX + f * 4.6 - (f < 0 ? 1 : 0), toeY - 1, 1, 1, C.hamPinkDark);
-    px(toeX + f * 5.5 - (f < 0 ? 1 : 0), toeY + 1, 1, 1, C.hamPinkDark);
+    px(toeX + f * 4.6 - (f < 0 ? 1 : 0), toeY - 1, 1, 1, C.hedgeToe);
+    px(toeX + f * 5.5 - (f < 0 ? 1 : 0), toeY + 1, 1, 1, C.hedgeToe);
   }
 
   // Four-beat walk: each foot enters swing one quarter-cycle after the last.
@@ -1115,18 +1222,18 @@ function drawWalkingPose(x, groundY, r, f, a) {
   const headR = r * .48;
   ellipse(headX, headY, headR, headR * .9, a.pattern === 'hood' ? a.dark : a.coat);
   ellipse(headX - f * 2, headY - headR * .75, 4.5, 5.2, a.coat);
-  ellipse(headX - f * 2, headY - headR * .75, 2.5, 3.2, C.hamPink);
+  ellipse(headX - f * 2, headY - headR * .75, 2.5, 3.2, C.hedgeEar);
   ellipse(headX + f * headR * .58, headY + 2, 5, 4, a.belly);
-  ellipse(headX + f * headR * .93, headY + 2, 2, 1.7, C.hamNose);
-  ellipse(headX + f * 2, headY - 2, 2.5, 3, C.hamEye);
+  ellipse(headX + f * headR * .93, headY + 2, 2, 1.7, C.hedgeNose);
+  ellipse(headX + f * 2, headY - 2, 2.5, 3, C.hedgeEye);
   px(headX + f * 2, headY - 4, 1, 1, '#fff7e5');
   ctx.strokeStyle = 'rgba(100,65,40,.55)'; ctx.lineWidth = .6; ctx.beginPath();
   ctx.moveTo(headX + f * 7, headY + 3); ctx.lineTo(headX + f * 17, headY);
   ctx.moveTo(headX + f * 7, headY + 5); ctx.lineTo(headX + f * 17, headY + 6); ctx.stroke();
 
   // Near pair drawn last so all four alternating legs remain readable.
-  leg(rearHip, phase, C.hamPaw);
-  leg(frontHip, phase + Math.PI * .5, C.hamPaw);
+  leg(rearHip, phase, C.hedgePaw);
+  leg(frontHip, phase + Math.PI * .5, C.hedgePaw);
   // A few foreground chips overlap the contact line so planted paws feel embedded.
   px(x - 13, groundY, 5, 1, '#8d6137'); px(x - 10, groundY - 1, 2, 1, '#f5dca5');
   px(x + 8, groundY + 1, 6, 1, '#aa7440'); px(x + 11, groundY, 3, 1, '#fff0c5');
@@ -1194,73 +1301,32 @@ function drawAdoptScreen() {
   // Title
   ctx.font = 'bold 18px monospace';
   ctx.fillStyle = C.uiAccent;
-  ctx.fillText('HAMSTORY', W / 2, 32);
+  ctx.fillText('HEDGEHOME', W / 2, 32);
   
   ctx.font = '8px monospace';
   ctx.fillStyle = C.tealDark;
-  ctx.fillText('a tiny life simulator', W / 2, 48);
+  ctx.fillText('A tiny life in your hands.', W / 2, 48);
   
-  // Draw a big cute hamster in center
+  // Draw a big cute hedgehog in center
   const hx = W / 2, hy = 120;
   const bob = Math.sin(animFrame * 0.05) * 2;
   
-  // Body
-  ellipse(hx, hy + bob, 28, 26, C.hamOrange);
-  ellipse(hx, hy + 6 + bob, 18, 16, C.hamBelly);
-  
-  // Head
-  ellipse(hx, hy - 18 + bob, 20, 18, C.hamOrange);
-  
-  // Head stripe
-  ellipse(hx, hy - 28 + bob, 6, 5, C.hamDarkStripe);
-  
-  // Ears
-  ellipse(hx - 14, hy - 30 + bob, 6, 8, C.hamOrange);
-  ellipse(hx - 14, hy - 30 + bob, 4, 5, C.hamPink);
-  ellipse(hx + 14, hy - 30 + bob, 6, 8, C.hamOrange);
-  ellipse(hx + 14, hy - 30 + bob, 4, 5, C.hamPink);
-  
-  // Eyes (big and cute)
-  ellipse(hx - 7, hy - 20 + bob, 4.5, 5.5, '#fff');
-  ellipse(hx + 7, hy - 20 + bob, 4.5, 5.5, '#fff');
-  ellipse(hx - 7, hy - 19 + bob, 3, 4, C.hamEye);
-  ellipse(hx + 7, hy - 19 + bob, 3, 4, C.hamEye);
-  px(hx - 6, hy - 22 + bob, 2, 2, C.hamEyeColor);
-  px(hx + 7, hy - 22 + bob, 2, 2, C.hamEyeColor);
-  px(hx - 5, hy - 23 + bob, 2, 2, '#fff');
-  px(hx + 8, hy - 23 + bob, 2, 2, '#fff');
-  
-  // Cheeks
-  ellipse(hx - 13, hy - 14 + bob, 6, 5, C.hamCheek);
-  ellipse(hx + 13, hy - 14 + bob, 6, 5, C.hamCheek);
-  
-  // Nose
-  ellipse(hx, hy - 12 + bob, 3, 2.5, C.hamNose);
-  
-  // Mouth
-  ctx.strokeStyle = C.hamDarkStripe;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(hx, hy - 9 + bob, 2.5, 0.3, Math.PI - 0.3);
-  ctx.stroke();
-  
-  // Paws
-  ellipse(hx - 8, hy + 20 + bob, 5, 3, C.hamPaw);
-  ellipse(hx + 8, hy + 20 + bob, 5, 3, C.hamPaw);
-  
-  // Whiskers
-  ctx.strokeStyle = 'rgba(120,80,40,0.4)';
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(hx - 10, hy - 14 + bob); ctx.lineTo(hx - 22, hy - 17 + bob);
-  ctx.moveTo(hx - 10, hy - 12 + bob); ctx.lineTo(hx - 22, hy - 11 + bob);
-  ctx.moveTo(hx + 10, hy - 14 + bob); ctx.lineTo(hx + 22, hy - 17 + bob);
-  ctx.moveTo(hx + 10, hy - 12 + bob); ctx.lineTo(hx + 22, hy - 11 + bob);
-  ctx.stroke();
+  // Low, side-profile hedgehog with a spined back and pointed snout.
+  const previewLook = HEDGEHOG_LOOKS[0];
+  drawQuillBody(hx - 4, hy + bob, 28, previewLook);
+  ellipse(hx + 16, hy + 4 + bob, 13, 11, previewLook.light);
+  ctx.fillStyle = previewLook.light; ctx.beginPath();
+  ctx.moveTo(hx + 20, hy - 2 + bob); ctx.lineTo(hx + 40, hy + 5 + bob);
+  ctx.lineTo(hx + 20, hy + 11 + bob); ctx.closePath(); ctx.fill();
+  ellipse(hx + 40, hy + 5 + bob, 3, 2.5, '#241812');
+  ellipse(hx + 19, hy + bob, 3, 3.5, C.hedgeEye); px(hx + 19, hy - 2 + bob, 1, 1, '#fff');
+  ellipse(hx + 10, hy - 8 + bob, 5, 6, previewLook.light); ellipse(hx + 10, hy - 8 + bob, 3, 4, C.hedgeEar);
+  ellipse(hx - 14, hy + 19 + bob, 5, 2.5, previewLook.belly);
+  ellipse(hx + 12, hy + 19 + bob, 5, 2.5, previewLook.belly);
   
   ctx.font = '10px monospace';
   ctx.fillStyle = '#5a4030';
-  ctx.fillText('A hamster is waiting', W / 2, 170);
+  ctx.fillText('A hedgehog is waiting', W / 2, 170);
   ctx.fillText('for a home...', W / 2, 184);
   
   ctx.font = 'bold 10px monospace';
@@ -1289,7 +1355,7 @@ function drawNamingScreen() {
   
   ctx.font = 'bold 11px monospace';
   ctx.fillStyle = C.uiAccent;
-  ctx.fillText('NAME YOUR HAMSTER', W / 2, 24);
+  ctx.fillText('NAME YOUR HEDGEHOG', W / 2, 24);
   
   // Name box
   roundRect(24, 44, 192, 30, 10, '#fff');
@@ -1358,18 +1424,17 @@ function drawDeathScreen() {
   ctx.ellipse(px2 + 22, py, 10, 14, 0.3, 0, Math.PI * 2);
   ctx.fill();
   
-  // Body
-  ellipse(px2, py, 16, 14, C.hamOrange);
-  ellipse(px2, py + 4, 10, 8, C.hamBelly);
-  
-  // Peaceful face
-  ctx.strokeStyle = C.hamEye;
+  const memorialLook = stableAppearanceFor(hedgehog);
+  drawQuillBody(px2 - 3, py, 15, memorialLook);
+  ellipse(px2 + 8, py + 3, 8, 7, memorialLook.light);
+  ctx.fillStyle = memorialLook.light; ctx.beginPath();
+  ctx.moveTo(px2 + 10, py); ctx.lineTo(px2 + 20, py + 4); ctx.lineTo(px2 + 10, py + 7); ctx.closePath(); ctx.fill();
+  ellipse(px2 + 20, py + 4, 2, 1.6, '#241812');
+  // Peaceful closed eye
+  ctx.strokeStyle = C.hedgeEye;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(px2 - 4, py - 3, 2.5, 0.2, Math.PI - 0.2);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(px2 + 4, py - 3, 2.5, 0.2, Math.PI - 0.2);
+  ctx.arc(px2 + 9, py + 1, 2, 0.2, Math.PI - 0.2);
   ctx.stroke();
   
   // Halo
@@ -1383,13 +1448,13 @@ function drawDeathScreen() {
   
   ctx.font = 'bold 13px monospace';
   ctx.fillStyle = '#4a3a2a';
-  ctx.fillText(hamster.name, W / 2, 120);
+  ctx.fillText(hedgehog.name, W / 2, 120);
   
   ctx.font = '9px monospace';
   ctx.fillStyle = '#7a6a5a';
-  const ageDays = Math.floor(hamster.metrics.ageTicks / DAY_TICKS);
+  const ageDays = Math.floor(hedgehog.metrics.ageTicks / DAY_TICKS);
   ctx.fillText(`Lived ${ageDays} days`, W / 2, 142);
-  ctx.fillText(`Ran ${Math.floor(hamster.metrics.wheelDistance)}m`, W / 2, 158);
+  ctx.fillText(`Ran ${Math.floor(hedgehog.metrics.wheelDistance)}m`, W / 2, 158);
   
   ctx.font = '8px monospace';
   ctx.fillStyle = '#a08060';
@@ -1503,7 +1568,7 @@ function render() {
     case STATES.NAMING: drawNamingScreen(); break;
     case STATES.LIVING:
       drawHabitat();
-      drawHamster();
+      drawHedgehog();
       drawUI();
       drawMessage();
       break;
@@ -1514,15 +1579,15 @@ function render() {
 }
 
 function updateLiveMovement(deltaMs) {
-  const distance = hamster.targetX - hamster.posX;
+  const distance = hedgehog.targetX - hedgehog.posX;
   if (Math.abs(distance) <= 2) return;
   const direction = Math.sign(distance);
-  const climbing = hamster.activity === ACTIVITIES.RUNNING &&
-    (hamster.wheelPhase === 'climb' || hamster.wheelPhase === 'exit');
+  const climbing = hedgehog.activity === ACTIVITIES.RUNNING &&
+    (hedgehog.wheelPhase === 'climb' || hedgehog.wheelPhase === 'exit');
   const speed = climbing ? 13 : 9; // pixels per second
   const step = Math.min(Math.abs(distance), speed * Math.min(deltaMs, 50) / 1000);
-  hamster.posX = clampFloorX(hamster.posX + direction * step);
-  hamster.facing = direction;
+  hedgehog.posX = clampFloorX(hedgehog.posX + direction * step);
+  hedgehog.facing = direction;
   if (!climbing) walkPhase = (walkPhase + step * .58) % (Math.PI * 2);
 }
 
@@ -1530,10 +1595,10 @@ function gameLoop() {
   const now = Date.now();
   const delta = now - lastFrameTime;
   lastFrameTime = now;
-  if (state === STATES.LIVING && hamster && hamster.alive) {
+  if (state === STATES.LIVING && hedgehog && hedgehog.alive) {
     if (!PREVIEW_FREEZE) updateLiveMovement(delta);
-    // Only a visibly running hamster drives the wheel; frame timing keeps it fluid.
-    if (hamster.activity === ACTIVITIES.RUNNING && hamster.wheelPhase === 'run') {
+    // Only a visibly running hedgehog drives the wheel; frame timing keeps it fluid.
+    if (hedgehog.activity === ACTIVITIES.RUNNING && hedgehog.wheelPhase === 'run') {
       wheelAngle = (wheelAngle + delta * 0.34) % 360;
     }
     tickAccumulator += delta;
@@ -1588,16 +1653,16 @@ window.addEventListener('longPressStart', () => {
 
 function finishNaming() {
   if (namingName.trim().length === 0) return;
-  hamster = createHamster(namingName.trim());
+  hedgehog = createHedgehog(namingName.trim());
   foodOnGround = [];
   fallingFood = [];
   state = STATES.LIVING;
-  showMessage(`Welcome home, ${hamster.name}!`);
+  showMessage(`Welcome home, ${hedgehog.name}!`);
   saveGame();
 }
 
 function dropFood() {
-  if (!hamster || !hamster.alive) return;
+  if (!hedgehog || !hedgehog.alive) return;
   fallingFood.push({
     type: selectedFoodIndex,
     x: HABITAT.foodMinX + Math.random() * (HABITAT.foodMaxX - HABITAT.foodMinX),
@@ -1640,35 +1705,35 @@ async function init() {
   if (new URLSearchParams(window.location.search).has('preview')) {
     const previewParams = new URLSearchParams(window.location.search);
     if (previewParams.has('phase')) walkPhase = Number(previewParams.get('phase')) || 0;
-    hamster = createHamster('WAFFLE');
+    hedgehog = createHedgehog('WAFFLE');
     if (previewParams.has('look')) {
-      const lookIndex = Math.max(0, Math.min(HAMSTER_LOOKS.length - 1, Number(previewParams.get('look')) || 0));
-      hamster.appearance = { ...HAMSTER_LOOKS[lookIndex], lookIndex };
+      const lookIndex = Math.max(0, Math.min(HEDGEHOG_LOOKS.length - 1, Number(previewParams.get('look')) || 0));
+      hedgehog.appearance = { ...HEDGEHOG_LOOKS[lookIndex], lookIndex };
     }
-    hamster.lifeStage = LIFE_STAGES.ADULT;
-    hamster.metrics.ageTicks = DAY_TICKS * 120;
-    hamster.metrics.bodyMass = 38;
-    hamster.activity = ACTIVITIES.IDLE;
-    hamster.activityTimer = 999;
-    hamster.posX = 132;
-    hamster.targetX = 132;
+    hedgehog.lifeStage = LIFE_STAGES.ADULT;
+    hedgehog.metrics.ageTicks = DAY_TICKS * 120;
+    hedgehog.metrics.bodyMass = 38;
+    hedgehog.activity = ACTIVITIES.IDLE;
+    hedgehog.activityTimer = 999;
+    hedgehog.posX = 132;
+    hedgehog.targetX = 132;
     foodOnGround = [
       { type: 3, x: 181, y: 207, remaining: 3, maxAmount: 3 },
       { type: 5, x: 181, y: 207, remaining: 3, maxAmount: 3 },
       { type: 2, x: 181, y: 207, remaining: 3, maxAmount: 3 },
     ];
     const activityPreview = previewParams.get('activity');
-    if (activityPreview === 'walking') { hamster.activity = ACTIVITIES.IDLE; hamster.posX = 92; hamster.targetX = 172; }
-    if (activityPreview === 'eating') { hamster.activity = ACTIVITIES.EATING; hamster.posX = 181; hamster.targetX = 181; }
-    if (activityPreview === 'running') { hamster.activity = ACTIVITIES.RUNNING; hamster.wheelPhase = 'run'; hamster.activityTimer = 999; hamster.posX = HABITAT.wheelCenterX; hamster.targetX = HABITAT.wheelCenterX; }
-    if (activityPreview === 'sleeping') { hamster.activity = ACTIVITIES.SLEEPING; hamster.posX = HABITAT.hideoutX; hamster.targetX = HABITAT.hideoutX; }
-    if (activityPreview === 'drinking') { hamster.activity = ACTIVITIES.DRINKING; hamster.posX = HABITAT.waterX; hamster.targetX = HABITAT.waterX; }
+    if (activityPreview === 'walking') { hedgehog.activity = ACTIVITIES.IDLE; hedgehog.posX = 92; hedgehog.targetX = 172; }
+    if (activityPreview === 'eating') { hedgehog.activity = ACTIVITIES.EATING; hedgehog.posX = 181; hedgehog.targetX = 181; }
+    if (activityPreview === 'running') { hedgehog.activity = ACTIVITIES.RUNNING; hedgehog.wheelPhase = 'run'; hedgehog.activityTimer = 999; hedgehog.posX = HABITAT.wheelCenterX; hedgehog.targetX = HABITAT.wheelCenterX; }
+    if (activityPreview === 'sleeping') { hedgehog.activity = ACTIVITIES.SLEEPING; hedgehog.posX = HABITAT.hideoutX; hedgehog.targetX = HABITAT.hideoutX; }
+    if (activityPreview === 'drinking') { hedgehog.activity = ACTIVITIES.DRINKING; hedgehog.posX = HABITAT.waterX; hedgehog.targetX = HABITAT.waterX; }
     if (activityPreview === 'foodscale') {
-      hamster.posX = 82; hamster.targetX = 82;
+      hedgehog.posX = 82; hedgehog.targetX = 82;
       foodOnGround = FOOD_TYPES.map((_, type) => ({ type, x: 145 + type * 9, y: 207, remaining: 3, maxAmount: 3 }));
     }
     if (activityPreview === 'decay') {
-      hamster.posX = 82; hamster.targetX = 82;
+      hedgehog.posX = 82; hedgehog.targetX = 82;
       foodOnGround = FOOD_TYPES.map((food, type) => ({
         type, x: 145 + type * 9, y: 207, remaining: 3, maxAmount: 3,
         ageMinutes: food.decayMinutes * (.7 + type * .04),
