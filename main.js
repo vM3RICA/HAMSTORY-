@@ -842,18 +842,45 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
   let height = width * 111 / 128;
   let bob = walking ? Math.sin(phase * 2) * .22 : Math.sin(animFrame * .045) * .28;
   let angle = 0;
+  let scaleX = 1;
+  let scaleY = 1;
   let drawX = x;
   let drawGround = groundY + bob;
+
+  if (walking) {
+    const stride = Math.sin(phase * 2);
+    const energy = running ? 1 : .55;
+    angle += Math.sin(phase) * .025 * energy;
+    scaleX = 1 + Math.abs(stride) * .025 * energy;
+    scaleY = 1 - Math.abs(stride) * .035 * energy;
+    bob += Math.abs(stride) * (running ? .9 : .42);
+    drawGround = groundY + bob;
+  } else {
+    // Gentle breathing keeps the master artwork from feeling pasted in place.
+    scaleX = 1 - Math.sin(animFrame * .045) * .006;
+    scaleY = 1 + Math.sin(animFrame * .045) * .012;
+  }
+
+  if (eating) {
+    const nibble = Math.sin(animFrame * .55);
+    angle += f * nibble * .018;
+    scaleX *= 1 + Math.max(0, nibble) * .012;
+    scaleY *= 1 - Math.max(0, nibble) * .018;
+    drawGround += Math.abs(nibble) * .35;
+  }
 
   if (sleeping) {
     height *= .78;
     angle = f * .08;
     bob = Math.sin(animFrame * .045) * .2;
     drawGround = groundY + bob;
+    scaleX = 1 + Math.sin(animFrame * .045) * .012;
+    scaleY = 1 - Math.sin(animFrame * .045) * .018;
   } else if (drinking) {
-    angle = -f * .32;
+    const sip = Math.sin(animFrame * .34);
+    angle = -f * (.32 + sip * .018);
     drawX -= f * 7;
-    drawGround -= 5;
+    drawGround -= 5 + Math.max(0, sip) * .7;
   }
 
   ctx.globalAlpha = .18;
@@ -875,16 +902,26 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
       const lift = swing ? Math.sin(t * Math.PI) * (running ? 3 : 1.8) : 0;
       const footX = drawX + f * (width * foot.x + reach);
       const footY = groundY - 1 - lift;
-      ellipse(footX + f * 1.5, footY, foot.far ? 2.2 : 2.7, foot.far ? 1.1 : 1.35,
-        foot.far ? '#a9755d' : '#d99b83');
-      px(footX + f * 3.1 - (f < 0 ? 1 : 0), footY, 1, 1, '#f0c0aa');
+      const legTopY = groundY - (running ? 7 : 6);
+      const legTopX = drawX + f * width * foot.x;
+      ctx.strokeStyle = foot.far ? '#82584b' : '#c88270';
+      ctx.lineWidth = foot.far ? 1.7 : 2.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(legTopX, legTopY); ctx.lineTo(footX, footY - .5); ctx.stroke();
+      ctx.lineCap = 'butt';
+      ellipse(footX + f * 2, footY, foot.far ? 3.1 : 3.8, foot.far ? 1.45 : 1.8,
+        foot.far ? '#a9755d' : '#df9d86');
+      px(footX + f * 4.6 - (f < 0 ? 1 : 0), footY - 1, 1, 1, '#f6c9b5');
+      px(footX + f * 4.9 - (f < 0 ? 1 : 0), footY + 1, 1, 1, '#f6c9b5');
+      if (!swing && (cycle < .42 || cycle > .93)) {
+        px(footX - f * 2, groundY + 1, 2, 1, C.beddingLight);
+      }
     }
   }
 
   ctx.save();
   ctx.translate(drawX, drawGround);
-  ctx.scale(f, 1);
   ctx.rotate(angle * f);
+  ctx.scale(f * scaleX, scaleY);
   const lookIndex = Number(a.lookIndex || 0);
   const hue = [-4, 7, -10, 4, -7, 10][lookIndex] || 0;
   ctx.filter = `hue-rotate(${hue}deg) saturate(${lookIndex === 2 ? .82 : 1})`;
