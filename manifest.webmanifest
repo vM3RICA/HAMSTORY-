@@ -1,0 +1,19 @@
+{
+  "name": "HEDGEHOME",
+  "short_name": "HEDGEHOME",
+  "description": "A tiny life in your hands.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#cda66f",
+  "theme_color": "#49382a",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

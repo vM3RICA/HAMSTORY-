@@ -81,7 +81,7 @@ const C = {
 const HEDGEHOG_LOOKS = [
   { coat: '#c97832', light: '#e2964c', dark: '#754322', belly: '#fff1d2', cheek: '#ffe0b0', pattern: 'stripe' },
   { coat: '#e4c79e', light: '#f3dfbd', dark: '#9b7659', belly: '#fff7e8', cheek: '#f5d4bd', pattern: 'band' },
-  { coat: '#89847b', light: '#aaa49a', dark: '#4d4a47', belly: '#eee8dc', cheek: '#d8c5b4', pattern: 'sable' },
+  { coat: '#a77b58', light: '#c8a47e', dark: '#554238', belly: '#f3dfc6', cheek: '#dfbfa3', pattern: 'sable' },
   { coat: '#4c4038', light: '#75645a', dark: '#261f1c', belly: '#f1e3cd', cheek: '#d9bca6', pattern: 'bib' },
   { coat: '#b76b50', light: '#d58d6c', dark: '#6d3d32', belly: '#f8e4ca', cheek: '#edc4ad', pattern: 'patches' },
   { coat: '#eee0c4', light: '#fff3dc', dark: '#b38a5d', belly: '#fffaf0', cheek: '#f5d9c1', pattern: 'hood' },
@@ -778,21 +778,25 @@ function drawFallingFood() {
 // ============================================================
 
 function drawQuillBody(x, y, r, a) {
+  // Rounded pear-shaped quill coat. Short layered marks read as soft quills
+  // at r1 resolution without turning the animal into a jagged silhouette.
   ctx.fillStyle = a.dark;
   ctx.beginPath();
-  ctx.moveTo(x - r * 1.02, y + r * .35);
-  for (let i = 0; i <= 14; i++) {
-    const angle = Math.PI + i * Math.PI / 14;
-    const spike = i % 2 ? 1.18 : 1.02;
-    ctx.lineTo(x + Math.cos(angle) * r * spike, y + Math.sin(angle) * r * .78 * spike);
+  ctx.moveTo(x - r * 1.04, y + r * .3);
+  ctx.bezierCurveTo(x - r * 1.02, y - r * .46, x - r * .48, y - r * .82, x + r * .12, y - r * .72);
+  ctx.bezierCurveTo(x + r * .72, y - r * .62, x + r * 1.02, y - r * .14, x + r * .92, y + r * .38);
+  ctx.bezierCurveTo(x + r * .35, y + r * .62, x - r * .52, y + r * .6, x - r * 1.04, y + r * .3);
+  ctx.closePath(); ctx.fill();
+  ellipse(x - r * .08, y + r * .04, r * .84, r * .5, a.coat);
+  ctx.strokeStyle = a.light; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+  for (let row = 0; row < 3; row++) {
+    for (let i = -4; i <= 4; i++) {
+      const qx = x + i * r * .17 + (row % 2) * r * .07;
+      const qy = y - r * .42 + row * r * .25 + Math.abs(i) * r * .018;
+      ctx.beginPath(); ctx.moveTo(qx - r * .08, qy + r * .1); ctx.lineTo(qx + r * .08, qy - r * .08); ctx.stroke();
+    }
   }
-  ctx.lineTo(x + r * 1.02, y + r * .38); ctx.closePath(); ctx.fill();
-  ellipse(x, y + r * .03, r * .94, r * .6, a.coat);
-  ctx.strokeStyle = a.light; ctx.lineWidth = 1;
-  for (let i = -5; i <= 5; i++) {
-    ctx.beginPath(); ctx.moveTo(x + i * r * .13, y + r * .22);
-    ctx.lineTo(x + i * r * .16, y - r * (.42 + (Math.abs(i) % 2) * .12)); ctx.stroke();
-  }
+  ctx.lineCap = 'butt';
 }
 
 function drawHedgehogCreature(x, groundY, r, f, a, wheelPhase) {
@@ -835,17 +839,17 @@ function drawHedgehogCreature(x, groundY, r, f, a, wheelPhase) {
 
   const running = inWheel;
   const phase = running ? animFrame * .72 : walkPhase;
-  const bodyY = groundY - r * (running ? .82 : .72) + (moving || running ? Math.sin(phase * 2) * .3 : Math.sin(animFrame * .05) * .35);
+  const bodyY = groundY - r * (running ? .78 : .67) + (moving || running ? Math.sin(phase * 2) * .22 : Math.sin(animFrame * .05) * .3);
   ctx.globalAlpha = .2; ellipse(x, groundY + 1, r * .72, 2.2, '#3e2c20'); ctx.globalAlpha = 1;
 
   function hedgeLeg(hipX, legPhase, far) {
-    const reach = -Math.cos(legPhase) * (running ? 5 : 3.6);
-    const lift = Math.max(0, Math.sin(legPhase)) * (running ? 3.4 : 2.4);
+    const reach = -Math.cos(legPhase) * (running ? 5 : 3.1);
+    const lift = Math.max(0, Math.sin(legPhase)) * (running ? 3.2 : 1.8);
     const toeX = hipX + f * reach, toeY = groundY - 1 - lift;
     const color = far ? a.dark : a.belly;
-    ctx.strokeStyle = color; ctx.lineWidth = far ? 2 : 2.7; ctx.beginPath();
-    ctx.moveTo(hipX, bodyY + r * .3); ctx.lineTo(hipX + f * reach * .3, bodyY + r * .55); ctx.lineTo(toeX, toeY); ctx.stroke();
-    ellipse(toeX + f * 2, toeY, 3.5, 1.6, color);
+    ctx.strokeStyle = color; ctx.lineWidth = far ? 1.8 : 2.4; ctx.beginPath();
+    ctx.moveTo(hipX, bodyY + r * .28); ctx.lineTo(hipX + f * reach * .25, bodyY + r * .5); ctx.lineTo(toeX, toeY); ctx.stroke();
+    ellipse(toeX + f * 1.8, toeY, 3.1, 1.45, color);
     px(toeX + f * 4.5 - (f < 0 ? 1 : 0), toeY, 1, 1, C.hedgeToe);
   }
 
@@ -854,16 +858,23 @@ function drawHedgehogCreature(x, groundY, r, f, a, wheelPhase) {
   hedgeLeg(front - f * 3, phase + Math.PI * 1.5, true);
   drawQuillBody(x - f * 2, bodyY, r, a);
 
-  const headX = x + f * r * .63;
-  const headY = bodyY + (eating ? 5 + Math.sin(animFrame * .5) : 1);
-  ellipse(headX, headY, r * .43, r * .38, a.light);
+  const headX = x + f * r * .62;
+  const headY = bodyY + (eating ? 4 + Math.sin(animFrame * .5) : 1);
+  // A generous warm face is the emotional focal point; the forehead overlaps
+  // the quill coat so the head feels attached to the body.
+  ellipse(headX - f * r * .05, headY, r * .52, r * .46, a.light);
+  ellipse(headX + f * r * .1, headY + r * .15, r * .43, r * .3, a.belly);
   ctx.fillStyle = a.light; ctx.beginPath();
-  ctx.moveTo(headX + f * r * .2, headY - r * .18);
-  ctx.lineTo(headX + f * r * .85, headY + r * .08);
-  ctx.lineTo(headX + f * r * .2, headY + r * .25); ctx.closePath(); ctx.fill();
-  ellipse(headX + f * r * .85, headY + r * .08, 2.2, 1.8, '#241812');
-  ellipse(headX + f * 2, headY - 2, 2.3, 2.8, C.hedgeEye); px(headX + f * 2, headY - 4, 1, 1, '#fff');
-  ellipse(headX - f * 3, headY - r * .34, 3.5, 4.2, a.light); ellipse(headX - f * 3, headY - r * .34, 2, 2.5, C.hedgeEar);
+  ctx.moveTo(headX + f * r * .18, headY - r * .13);
+  ctx.quadraticCurveTo(headX + f * r * .68, headY - r * .02, headX + f * r * .91, headY + r * .1);
+  ctx.quadraticCurveTo(headX + f * r * .62, headY + r * .3, headX + f * r * .14, headY + r * .29);
+  ctx.closePath(); ctx.fill();
+  ellipse(headX + f * r * .9, headY + r * .1, 2.4, 2, '#2a1c18');
+  ellipse(headX + f * 1, headY - 3, 2.7, 3.1, '#231913'); px(headX + f * 1, headY - 5, 1, 1, '#fff7e5');
+  ellipse(headX - f * 4, headY - r * .36, 4.1, 4.6, a.light); ellipse(headX - f * 4, headY - r * .36, 2.2, 2.7, '#d99788');
+  // Tiny contented mouth below the nose.
+  ctx.strokeStyle = '#704434'; ctx.lineWidth = .8; ctx.beginPath();
+  ctx.moveTo(headX + f * r * .69, headY + r * .19); ctx.quadraticCurveTo(headX + f * r * .61, headY + r * .25, headX + f * r * .53, headY + r * .2); ctx.stroke();
   ctx.strokeStyle = 'rgba(70,55,45,.55)'; ctx.lineWidth = .6; ctx.beginPath();
   ctx.moveTo(headX + f * 8, headY + 3); ctx.lineTo(headX + f * 18, headY);
   ctx.moveTo(headX + f * 8, headY + 5); ctx.lineTo(headX + f * 18, headY + 6); ctx.stroke();
