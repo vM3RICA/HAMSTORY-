@@ -778,22 +778,51 @@ function drawFallingFood() {
 // ============================================================
 
 function drawQuillBody(x, y, r, a) {
-  // Rounded pear-shaped quill coat. Short layered marks read as soft quills
-  // at r1 resolution without turning the animal into a jagged silhouette.
+  // Rounded pear-shaped coat with a crisp quill crown and layered highlights.
   ctx.fillStyle = a.dark;
   ctx.beginPath();
-  ctx.moveTo(x - r * 1.04, y + r * .3);
-  ctx.bezierCurveTo(x - r * 1.02, y - r * .46, x - r * .48, y - r * .82, x + r * .12, y - r * .72);
-  ctx.bezierCurveTo(x + r * .72, y - r * .62, x + r * 1.02, y - r * .14, x + r * .92, y + r * .38);
-  ctx.bezierCurveTo(x + r * .35, y + r * .62, x - r * .52, y + r * .6, x - r * 1.04, y + r * .3);
+  ctx.moveTo(x - r * .82, y + r * .34);
+  // Alternating radii make a bold but compact halo of individual quills.
+  for (let i = 0; i <= 16; i++) {
+    const angle = Math.PI + i * Math.PI / 16;
+    const spike = i % 2 ? 1.13 : .96;
+    ctx.lineTo(
+      x + Math.cos(angle) * r * .78 * spike,
+      y + Math.sin(angle) * r * .76 * spike
+    );
+  }
+  ctx.lineTo(x + r * .76, y + r * .4);
+  ctx.bezierCurveTo(x + r * .29, y + r * .65, x - r * .39, y + r * .64, x - r * .82, y + r * .34);
   ctx.closePath(); ctx.fill();
-  ellipse(x - r * .08, y + r * .04, r * .84, r * .5, a.coat);
-  ctx.strokeStyle = a.light; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+
+  // Pale tips around the crown echo the natural banding of real quills.
+  ctx.lineCap = 'round';
+  for (let i = 1; i < 16; i += 2) {
+    const angle = Math.PI + i * Math.PI / 16;
+    const innerX = x + Math.cos(angle) * r * .68;
+    const innerY = y + Math.sin(angle) * r * .66;
+    const tipX = x + Math.cos(angle) * r * .88;
+    const tipY = y + Math.sin(angle) * r * .86;
+    ctx.strokeStyle = '#f3dfb0'; ctx.lineWidth = 1.35;
+    ctx.beginPath(); ctx.moveTo(innerX, innerY); ctx.lineTo(tipX, tipY); ctx.stroke();
+  }
+  ellipse(x - r * .05, y + r * .04, r * .69, r * .53, a.coat);
+
+  // Each visible quill uses a dark shaft, a warm band, and a cream tip.
+  // The staggered rows create texture without becoming visual noise at 240px.
   for (let row = 0; row < 3; row++) {
     for (let i = -4; i <= 4; i++) {
-      const qx = x + i * r * .17 + (row % 2) * r * .07;
+      const qx = x + i * r * .135 + (row % 2) * r * .055;
       const qy = y - r * .42 + row * r * .25 + Math.abs(i) * r * .018;
-      ctx.beginPath(); ctx.moveTo(qx - r * .08, qy + r * .1); ctx.lineTo(qx + r * .08, qy - r * .08); ctx.stroke();
+      const sx = qx - r * .09, sy = qy + r * .11;
+      const mx = qx + r * .025, my = qy - r * .015;
+      const tx = qx + r * .105, ty = qy - r * .105;
+      ctx.strokeStyle = (i + row) % 2 ? a.dark : '#4b3529'; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(mx, my); ctx.stroke();
+      ctx.strokeStyle = (i + row) % 2 ? a.light : '#c99b59'; ctx.lineWidth = 1.55;
+      ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(tx - r * .025, ty + r * .025); ctx.stroke();
+      ctx.strokeStyle = '#f4e2b8'; ctx.lineWidth = 1.25;
+      ctx.beginPath(); ctx.moveTo(tx - r * .03, ty + r * .035); ctx.lineTo(tx, ty); ctx.stroke();
     }
   }
   ctx.lineCap = 'butt';
@@ -843,50 +872,72 @@ function drawHedgehogCreature(x, groundY, r, f, a, wheelPhase) {
   ctx.globalAlpha = .2; ellipse(x, groundY + 1, r * .72, 2.2, '#3e2c20'); ctx.globalAlpha = 1;
 
   function hedgeLeg(hipX, legPhase, far) {
-    const reach = -Math.cos(legPhase) * (running ? 5 : 3.1);
-    const lift = Math.max(0, Math.sin(legPhase)) * (running ? 3.2 : 1.8);
+    let reach;
+    let lift;
+    if (running) {
+      reach = -Math.cos(legPhase) * 5;
+      lift = Math.max(0, Math.sin(legPhase)) * 3.2;
+    } else {
+      // A real step has a short airborne reach followed by a longer planted
+      // phase. This removes the continuous paddle/flipper sweep.
+      const cycle = ((legPhase % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2);
+      if (cycle < .34) {
+        const swing = cycle / .34;
+        reach = -2.5 + swing * 5;
+        lift = Math.sin(swing * Math.PI) * 2;
+      } else {
+        const planted = (cycle - .34) / .66;
+        reach = 2.5 - planted * 5;
+        lift = 0;
+      }
+    }
     const toeX = hipX + f * reach, toeY = groundY - 1 - lift;
     const color = far ? a.dark : a.belly;
-    ctx.strokeStyle = color; ctx.lineWidth = far ? 1.8 : 2.4; ctx.beginPath();
-    ctx.moveTo(hipX, bodyY + r * .28); ctx.lineTo(hipX + f * reach * .25, bodyY + r * .5); ctx.lineTo(toeX, toeY); ctx.stroke();
-    ellipse(toeX + f * 1.8, toeY, 3.1, 1.45, color);
-    px(toeX + f * 4.5 - (f < 0 ? 1 : 0), toeY, 1, 1, C.hedgeToe);
+    ctx.strokeStyle = color; ctx.lineWidth = far ? 1.7 : 2.2; ctx.lineCap = 'round'; ctx.beginPath();
+    // Most of the limb stays hidden beneath the low quill coat.
+    const ankleX = hipX + f * reach * .22;
+    const ankleY = groundY - 3 - lift * .45;
+    ctx.moveTo(hipX, bodyY + r * .46); ctx.lineTo(ankleX, ankleY); ctx.lineTo(toeX, toeY); ctx.stroke();
+    ctx.lineCap = 'butt';
+    // Compact forward-pointing foot; only the toe advances during swing.
+    ellipse(toeX + f * 1.6, toeY, 2.7, 1.35, color);
+    px(toeX + f * 3.7 - (f < 0 ? 1 : 0), toeY, 1, 1, C.hedgeToe);
   }
 
-  const rear = x - f * r * .43, front = x + f * r * .38;
-  hedgeLeg(rear + f * 3, phase + Math.PI, true);
-  hedgeLeg(front - f * 3, phase + Math.PI * 1.5, true);
+  const rear = x - f * r * .34, front = x + f * r * .29;
+  hedgeLeg(rear + f * 2, phase + Math.PI, true);
+  hedgeLeg(front - f * 2, phase + Math.PI * 1.5, true);
   drawQuillBody(x - f * 2, bodyY, r, a);
 
-  const headX = x + f * r * .62;
+  const headX = x + f * r * .46;
   const headY = bodyY + (eating ? 4 + Math.sin(animFrame * .5) : 1);
   // A generous warm face is the emotional focal point; the forehead overlaps
   // the quill coat so the head feels attached to the body.
-  ellipse(headX - f * r * .05, headY, r * .52, r * .46, a.light);
-  ellipse(headX + f * r * .1, headY + r * .15, r * .43, r * .3, a.belly);
+  ellipse(headX - f * r * .07, headY - r * .02, r * .49, r * .52, a.light);
+  ellipse(headX + f * r * .07, headY + r * .14, r * .4, r * .3, a.belly);
   ctx.fillStyle = a.light; ctx.beginPath();
-  ctx.moveTo(headX + f * r * .18, headY - r * .13);
-  ctx.quadraticCurveTo(headX + f * r * .68, headY - r * .02, headX + f * r * .91, headY + r * .1);
-  ctx.quadraticCurveTo(headX + f * r * .62, headY + r * .3, headX + f * r * .14, headY + r * .29);
+  ctx.moveTo(headX + f * r * .12, headY - r * .14);
+  ctx.quadraticCurveTo(headX + f * r * .48, headY - r * .04, headX + f * r * .68, headY + r * .05);
+  ctx.quadraticCurveTo(headX + f * r * .5, headY + r * .25, headX + f * r * .1, headY + r * .27);
   ctx.closePath(); ctx.fill();
-  ellipse(headX + f * r * .9, headY + r * .1, 2.4, 2, '#2a1c18');
-  ellipse(headX + f * 1, headY - 3, 2.7, 3.1, '#231913'); px(headX + f * 1, headY - 5, 1, 1, '#fff7e5');
+  ellipse(headX + f * r * .68, headY + r * .05, 2.35, 1.9, '#2a1c18');
+  ellipse(headX + f * 1, headY - 4, 2.7, 3.1, '#231913'); px(headX + f * 1, headY - 6, 1, 1, '#fff7e5');
   ellipse(headX - f * 4, headY - r * .36, 4.1, 4.6, a.light); ellipse(headX - f * 4, headY - r * .36, 2.2, 2.7, '#d99788');
   // Tiny contented mouth below the nose.
   ctx.strokeStyle = '#704434'; ctx.lineWidth = .8; ctx.beginPath();
-  ctx.moveTo(headX + f * r * .69, headY + r * .19); ctx.quadraticCurveTo(headX + f * r * .61, headY + r * .25, headX + f * r * .53, headY + r * .2); ctx.stroke();
+  ctx.moveTo(headX + f * r * .52, headY + r * .16); ctx.quadraticCurveTo(headX + f * r * .45, headY + r * .22, headX + f * r * .37, headY + r * .18); ctx.stroke();
   ctx.strokeStyle = 'rgba(70,55,45,.55)'; ctx.lineWidth = .6; ctx.beginPath();
-  ctx.moveTo(headX + f * 8, headY + 3); ctx.lineTo(headX + f * 18, headY);
-  ctx.moveTo(headX + f * 8, headY + 5); ctx.lineTo(headX + f * 18, headY + 6); ctx.stroke();
+  ctx.moveTo(headX + f * 7, headY + 3); ctx.lineTo(headX + f * 15, headY);
+  ctx.moveTo(headX + f * 7, headY + 5); ctx.lineTo(headX + f * 15, headY + 6); ctx.stroke();
 
   hedgeLeg(rear, phase, false);
   hedgeLeg(front, phase + Math.PI * .5, false);
 
   if (eating) {
     const biteType = foodOnGround[0].type;
-    drawFoodSprite(biteType, headX + f * r * .8, headY + 5,
+    drawFoodSprite(biteType, headX + f * r * .66, headY + 5,
       Math.min(1.1, FOOD_TYPES[biteType].worldScale * .62));
-    ellipse(headX + f * r * .55, headY + 6 + Math.sin(animFrame * .55), 2.5, 2, a.belly);
+    ellipse(headX + f * r * .45, headY + 6 + Math.sin(animFrame * .55), 2.5, 2, a.belly);
   }
 }
 
@@ -906,9 +957,11 @@ function drawHedgehog() {
   }
   
   // Size scaling
-  let baseR = 16;
-  if (hedgehog.lifeStage === LIFE_STAGES.ADULT) baseR = 20;
-  if (hedgehog.lifeStage === LIFE_STAGES.SENIOR) baseR = 19;
+  // Slightly oversized for the r1 display so the face, quills, and four-foot
+  // gait remain readable without changing interaction or collision zones.
+  let baseR = 18;
+  if (hedgehog.lifeStage === LIFE_STAGES.ADULT) baseR = 22;
+  if (hedgehog.lifeStage === LIFE_STAGES.SENIOR) baseR = 21;
   const massScale = 0.8 + (hedgehog.metrics.bodyMass / 60) * 0.4;
   const r = Math.floor(baseR * massScale);
   const f = hedgehog.facing;
