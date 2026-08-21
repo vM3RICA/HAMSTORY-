@@ -2,7 +2,9 @@
 
 const W = 240, H = 282;
 const TICK_MS = 1000;
-const DAY_TICKS = 60;
+const DAY_TICKS = 1440; // ageTicks are real-world minutes
+const ACTIVE_MINUTES_PER_TICK = 1 / 60; // one live second advances one simulated second
+const OFFLINE_TICK_MS = 60000; // offline progression advances once per elapsed minute
 const PX = 2; // pixel grid size for retro feel
 
 const STATES = { ADOPT: 0, NAMING: 1, LIVING: 2, DEATH: 3, MEMORIAL: 4 };
@@ -11,10 +13,10 @@ const FOOD_TYPES = [
   { name: 'Pellets',   nutrition: 8, hydration: 1, fiber: 6, sugar: 1, spriteW: 5, spriteH: 4, worldScale: 1.0 },
   { name: 'Millet',    nutrition: 5, hydration: 0, fiber: 4, sugar: 2, spriteW: 4, spriteH: 3, worldScale: 0.85 },
   { name: 'Sunflower', nutrition: 7, hydration: 0, fiber: 2, sugar: 1, spriteW: 4, spriteH: 6, worldScale: 0.72 },
-  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12, worldScale: 1.65 },
-  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12, worldScale: 1.25 },
-  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.5 },
-  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 1.28 },
+  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12, worldScale: 2.35 },
+  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12, worldScale: 1.85 },
+  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.65 },
+  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 1.9 },
 ];
 
 const LIFE_STAGES = { JUVENILE: 0, ADULT: 1, SENIOR: 2 };
@@ -117,7 +119,7 @@ ctx.imageSmoothingEnabled = false;
 
 async function saveGame() {
   const data = {
-    version: 3,
+    version: 4,
     state, hamster, foodOnGround, memorial,
     lastTimestamp: Date.now(),
     selectedFoodIndex, wheelAngle,
@@ -153,6 +155,8 @@ async function loadGame() {
     lastTimestamp = data.lastTimestamp || Date.now();
     wheelAngle = data.wheelAngle || 0;
     if (hamster) {
+      // v3 measured age in accelerated 60-tick days. Preserve the same age in days.
+      if ((data.version || 3) < 4) hamster.metrics.ageTicks *= 24;
       hamster.posX = clampFloorX(Number.isFinite(hamster.posX) ? hamster.posX : 120);
       hamster.targetX = clampFloorX(Number.isFinite(hamster.targetX) ? hamster.targetX : hamster.posX);
       hamster.wheelPhase ||= null;
@@ -205,15 +209,15 @@ function getLifeStage(h) {
 // SIMULATION
 // ============================================================
 
-function simulateTick() {
+function simulateTick(timeScaleMinutes = ACTIVE_MINUTES_PER_TICK, offline = false) {
   if (!hamster || !hamster.alive) return;
 
-  hamster.metrics.ageTicks++;
+  hamster.metrics.ageTicks += timeScaleMinutes;
   const ageDays = hamster.metrics.ageTicks / DAY_TICKS;
   hamster.lifeStage = getLifeStage(hamster);
 
-  hamster.metrics.hunger += 0.15 * hamster.traits.metabolism;
-  hamster.metrics.thirst += 0.2;
+  hamster.metrics.hunger += 0.03 * hamster.traits.metabolism * timeScaleMinutes;
+  hamster.metrics.thirst += 0.035 * timeScaleMinutes;
 
   // FIFO eating: approach the oldest piece, settle, then visibly nibble it.
   if (hamster.metrics.hunger > 40 && foodOnGround.length > 0 &&
@@ -265,9 +269,8 @@ function simulateTick() {
     } else if (hamster.wheelPhase === 'run') {
       const speed = 0.5 + hamster.traits.wheelEnthusiasm * 0.5;
       hamster.metrics.wheelDistance += speed;
-      wheelAngle += speed * 12;
-      hamster.metrics.bodyMass = Math.max(15, hamster.metrics.bodyMass - 0.01);
-      hamster.metrics.hunger += 0.1;
+      hamster.metrics.bodyMass = Math.max(15, hamster.metrics.bodyMass - 0.002 * timeScaleMinutes);
+      hamster.metrics.hunger += 0.012 * timeScaleMinutes;
       hamster.activityTimer--;
       if (hamster.activityTimer <= 0) {
         hamster.wheelPhase = 'exit';
@@ -294,14 +297,14 @@ function simulateTick() {
   else if (hamster.targetX < hamster.posX - 3) hamster.facing = -1;
 
   let healthDelta = 0;
-  if (hamster.metrics.hunger > 80) healthDelta -= 0.5;
-  if (hamster.metrics.hunger > 95) healthDelta -= 1.0;
-  if (hamster.metrics.thirst > 80) healthDelta -= 0.3;
-  if (hamster.metrics.hunger < 40 && hamster.metrics.thirst < 40) healthDelta += 0.2 * hamster.traits.resilience;
-  if (hamster.metrics.bodyMass < 18) healthDelta -= 0.3;
-  if (hamster.metrics.bodyMass > 60) healthDelta -= 0.2;
+  if (hamster.metrics.hunger > 80) healthDelta -= 0.018 * timeScaleMinutes;
+  if (hamster.metrics.hunger > 95) healthDelta -= 0.025 * timeScaleMinutes;
+  if (hamster.metrics.thirst > 80) healthDelta -= 0.02 * timeScaleMinutes;
+  if (hamster.metrics.hunger < 40 && hamster.metrics.thirst < 40) healthDelta += 0.012 * hamster.traits.resilience * timeScaleMinutes;
+  if (hamster.metrics.bodyMass < 18) healthDelta -= 0.012 * timeScaleMinutes;
+  if (hamster.metrics.bodyMass > 60) healthDelta -= 0.008 * timeScaleMinutes;
   const lifePercent = ageDays / hamster.traits.lifespan;
-  if (lifePercent > 0.8) healthDelta -= 0.1 * (lifePercent - 0.8) * 10;
+  if (lifePercent > 0.8) healthDelta -= 0.004 * (lifePercent - 0.8) * 10 * timeScaleMinutes;
 
   hamster.metrics.health = Math.max(0, Math.min(100, hamster.metrics.health + healthDelta));
   hamster.metrics.hunger = Math.min(100, hamster.metrics.hunger);
@@ -318,7 +321,7 @@ function simulateTick() {
   hamster.posX = clampFloorX(hamster.posX);
   hamster.targetX = clampFloorX(hamster.targetX);
 
-  if (hamster.metrics.ageTicks % 30 === 0) saveGame();
+  if (!offline && Math.floor(hamster.metrics.ageTicks * 60) % 30 === 0) saveGame();
 }
 
 function chooseNextActivity() {
@@ -378,12 +381,12 @@ function triggerDeath(ageDays) {
 function simulateOffline() {
   const now = Date.now();
   const elapsedMs = now - lastTimestamp;
-  const elapsedTicks = Math.min(Math.floor(elapsedMs / TICK_MS), 7200);
-  if (elapsedTicks > 5) {
+  const elapsedTicks = Math.min(Math.floor(elapsedMs / OFFLINE_TICK_MS), 10080);
+  if (elapsedTicks > 0) {
     const hoursPassed = Math.floor(elapsedMs / 3600000);
     const minsPassed = Math.floor((elapsedMs % 3600000) / 60000);
     for (let i = 0; i < elapsedTicks; i++) {
-      simulateTick();
+      simulateTick(1, true);
       if (!hamster.alive) break;
     }
     if (hamster.alive) {
@@ -787,13 +790,11 @@ function drawHamster() {
   }
 
   // Position adjustments for running
-  let dy = Math.sin(animFrame * 0.055) * 0.7;
-  if (Math.abs(hamster.posX - hamster.targetX) > 2 && hamster.activity !== ACTIVITIES.RUNNING) {
-    dy -= Math.abs(Math.sin(animFrame * 0.28)) * 2;
-  }
-  if (inWheel) {
-    dy = Math.abs(Math.sin(animFrame * 0.55)) * -3;
-  }
+  const walking = Math.abs(hamster.posX - hamster.targetX) > 2 && !inWheel;
+  // Keep the torso planted. A tiny shoulder sway replaces the old swimming bounce.
+  let dy = Math.sin(animFrame * 0.055) * 0.45;
+  if (walking) dy += Math.sin(animFrame * 0.34) * 0.35;
+  if (inWheel) dy = Math.sin(animFrame * 0.72) * 0.35;
   
   const bodyY = groundY - r * 0.62 + dy;
 
@@ -916,11 +917,17 @@ function drawHamster() {
     px(x - 6, bodyY + r * 0.4 + pawUp + 1, 1, 1, C.hamPinkDark);
     px(x + 5, bodyY + r * 0.4 - pawUp + 1, 1, 1, C.hamPinkDark);
   }
-  // Back feet always visible
-  const walking = Math.abs(hamster.posX - hamster.targetX) > 2 && !inWheel;
-  const stride = walking ? Math.sin(animFrame * .42) * 4 : 0;
-  ellipse(x - f * r * .55 + stride, pawY, 4, 2.5, C.hamPaw);
-  ellipse(x + f * r * .58 - stride, pawY, 4, 2.5, C.hamPaw);
+  // Walking uses two alternating diagonal pairs, all close to the bedding.
+  if (hamster.activity !== ACTIVITIES.EATING && hamster.activity !== ACTIVITIES.GROOMING && !inWheel) {
+    const gait = walking ? Math.sin(animFrame * .36) : 0;
+    const reach = gait * 2.4;
+    const liftA = walking ? Math.max(0, gait) * 1.4 : 0;
+    const liftB = walking ? Math.max(0, -gait) * 1.4 : 0;
+    ellipse(x - f * r * .48 - reach, pawY - liftB - 1, 3.3, 1.8, '#d7aa82');
+    ellipse(x + f * r * .52 + reach, pawY - liftA - 1, 3.3, 1.8, '#d7aa82');
+    ellipse(x - f * r * .64 + reach, pawY - liftA, 4, 2.2, C.hamPaw);
+    ellipse(x + f * r * .68 - reach, pawY - liftB, 4, 2.2, C.hamPaw);
+  }
 
   // ACTIVITY-SPECIFIC ANIMATIONS
   if (hamster.activity === ACTIVITIES.EATING && foodOnGround.length > 0) {
@@ -947,13 +954,22 @@ function drawHamster() {
   }
 
   if (inWheel) {
-    // Legs motion blur
-    const legPhase = animFrame * 0.6;
-    const legY = pawY - 2;
-    ctx.globalAlpha = 0.5;
-    ellipse(x - 4 + Math.sin(legPhase) * 3, legY, 2, 2, C.hamPaw);
-    ellipse(x + 4 + Math.sin(legPhase + 2) * 3, legY, 2, 2, C.hamPaw);
-    ctx.globalAlpha = 1;
+    // Fast, readable four-leg cycle: paws reach, plant, and sweep back.
+    const run = animFrame * .78;
+    const legY = groundY - 3;
+    for (let i = 0; i < 4; i++) {
+      const phase = run + i * Math.PI / 2;
+      const fore = i >= 2;
+      const anchor = x + f * (fore ? 8 : -8) + (i % 2 ? 2 : -2);
+      const reach = Math.cos(phase) * 5;
+      const lift = Math.max(0, Math.sin(phase)) * 3.5;
+      const color = i % 2 ? '#d7aa82' : C.hamPaw;
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(anchor, bodyY + r * .35);
+      ctx.lineTo(anchor + f * reach, legY - lift);
+      ctx.stroke();
+      ellipse(anchor + f * reach, legY - lift, 2.8, 1.7, color);
+    }
   }
 }
 
@@ -1343,6 +1359,10 @@ function gameLoop() {
   const delta = now - lastFrameTime;
   lastFrameTime = now;
   if (state === STATES.LIVING && hamster && hamster.alive) {
+    // Only a visibly running hamster drives the wheel; frame timing keeps it fluid.
+    if (hamster.activity === ACTIVITIES.RUNNING && hamster.wheelPhase === 'run') {
+      wheelAngle = (wheelAngle + delta * 0.34) % 360;
+    }
     tickAccumulator += delta;
     while (tickAccumulator >= TICK_MS) {
       simulateTick();
@@ -1459,10 +1479,15 @@ async function init() {
       { type: 2, x: 181, y: 207, remaining: 3, maxAmount: 3 },
     ];
     const activityPreview = new URLSearchParams(window.location.search).get('activity');
+    if (activityPreview === 'walking') { hamster.activity = ACTIVITIES.IDLE; hamster.posX = 92; hamster.targetX = 172; }
     if (activityPreview === 'eating') { hamster.activity = ACTIVITIES.EATING; hamster.posX = 181; hamster.targetX = 181; }
     if (activityPreview === 'running') { hamster.activity = ACTIVITIES.RUNNING; hamster.wheelPhase = 'run'; hamster.activityTimer = 999; hamster.posX = HABITAT.wheelCenterX; hamster.targetX = HABITAT.wheelCenterX; }
     if (activityPreview === 'sleeping') { hamster.activity = ACTIVITIES.SLEEPING; hamster.posX = HABITAT.hideoutX; hamster.targetX = HABITAT.hideoutX; }
     if (activityPreview === 'drinking') { hamster.activity = ACTIVITIES.DRINKING; hamster.posX = HABITAT.waterX; hamster.targetX = HABITAT.waterX; }
+    if (activityPreview === 'foodscale') {
+      hamster.posX = 82; hamster.targetX = 82;
+      foodOnGround = FOOD_TYPES.map((_, type) => ({ type, x: 145 + type * 9, y: 207, remaining: 3, maxAmount: 3 }));
+    }
     state = STATES.LIVING;
   }
   lastFrameTime = Date.now();
