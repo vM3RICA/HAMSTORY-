@@ -789,6 +789,15 @@ function drawHamster() {
     return;
   }
 
+  // Floor locomotion uses a dedicated side-profile quadruped silhouette. Keeping
+  // this separate prevents the round front-facing idle pose from reading as a shell.
+  const floorWalking = !inWheel && (!wheelPhase || wheelPhase === 'approach') &&
+    Math.abs(hamster.posX - hamster.targetX) > 2;
+  if (floorWalking) {
+    drawWalkingPose(x, groundY, r, f);
+    return;
+  }
+
   // Position adjustments for running
   const walking = Math.abs(hamster.posX - hamster.targetX) > 2 && !inWheel;
   // Keep the torso planted. A tiny shoulder sway replaces the old swimming bounce.
@@ -991,6 +1000,59 @@ function drawHamster() {
       ellipse(anchor + f * reach, legY - lift, 2.8, 1.7, color);
     }
   }
+}
+
+function drawWalkingPose(x, groundY, r, f) {
+  const phase = animFrame * .34;
+  const bodyY = groundY - r * .9 + Math.abs(Math.sin(phase * 2)) * .45;
+  const hipY = bodyY + r * .38;
+  const footY = groundY - 1;
+  const rearHip = x - f * r * .48;
+  const frontHip = x + f * r * .48;
+
+  ctx.globalAlpha = .12; ellipse(x, groundY + 2, r * .82, 2.5, '#20170f'); ctx.globalAlpha = 1;
+
+  function leg(hipX, legPhase, color, far = false) {
+    const reach = Math.cos(legPhase) * 4.2;
+    const lift = Math.max(0, Math.sin(legPhase)) * 2.8;
+    const kneeX = hipX + f * reach * .25;
+    const kneeY = hipY + 4 - lift * .35;
+    const toeX = hipX + f * reach;
+    const toeY = footY - lift;
+    ctx.strokeStyle = color; ctx.lineWidth = far ? 2.3 : 3;
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(kneeX, kneeY); ctx.lineTo(toeX, toeY); ctx.stroke();
+    ellipse(toeX + f * 1.5, toeY, far ? 2.8 : 3.5, far ? 1.5 : 1.9, color);
+  }
+
+  // Far diagonal pair.
+  leg(rearHip + f * 3, phase + Math.PI, '#d2a178', true);
+  leg(frontHip - f * 3, phase, '#d2a178', true);
+
+  // Compact furred torso with clear daylight between belly and bedding.
+  ellipse(x, bodyY, r * .92, r * .57, '#b8662c');
+  ellipse(x - f * r * .3, bodyY - 1, r * .48, r * .42, C.hamGold);
+  ellipse(x + f * r * .18, bodyY + r * .25, r * .5, r * .22, '#f5dfbd');
+  ellipse(x - f * r * .88, bodyY + 1, 3.5, 2.8, C.hamGold);
+  ctx.fillStyle = C.hamDarkStripe; ctx.beginPath();
+  ctx.ellipse(x - f * 2, bodyY - r * .3, r * .45, r * .1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Side-profile head points in the direction of travel.
+  const headX = x + f * r * .72, headY = bodyY - r * .12;
+  const headR = r * .48;
+  ellipse(headX, headY, headR, headR * .9, '#cc7934');
+  ellipse(headX - f * 2, headY - headR * .75, 4.5, 5.2, C.hamOrange);
+  ellipse(headX - f * 2, headY - headR * .75, 2.5, 3.2, C.hamPink);
+  ellipse(headX + f * headR * .58, headY + 2, 5, 4, C.hamBelly);
+  ellipse(headX + f * headR * .93, headY + 2, 2, 1.7, C.hamNose);
+  ellipse(headX + f * 2, headY - 2, 2.5, 3, C.hamEye);
+  px(headX + f * 2, headY - 4, 1, 1, '#fff7e5');
+  ctx.strokeStyle = 'rgba(100,65,40,.55)'; ctx.lineWidth = .6; ctx.beginPath();
+  ctx.moveTo(headX + f * 7, headY + 3); ctx.lineTo(headX + f * 17, headY);
+  ctx.moveTo(headX + f * 7, headY + 5); ctx.lineTo(headX + f * 17, headY + 6); ctx.stroke();
+
+  // Near diagonal pair drawn last so the stepping order remains readable.
+  leg(rearHip, phase, C.hamPaw);
+  leg(frontHip, phase + Math.PI, C.hamPaw);
 }
 
 function drawDrinkingPose(x, r) {
