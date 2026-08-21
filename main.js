@@ -20,6 +20,11 @@ const FOOD_TYPES = [
 const LIFE_STAGES = { JUVENILE: 0, ADULT: 1, SENIOR: 2 };
 const STAGE_NAMES = ['Baby', 'Adult', 'Elder'];
 const ACTIVITIES = { IDLE: 0, EATING: 1, RUNNING: 2, SLEEPING: 3, HIDING: 4, DRINKING: 5, GROOMING: 6 };
+const HABITAT = {
+  floorMinX: 38, floorMaxX: 204,
+  hideoutX: 47, wheelEntryX: 87, wheelCenterX: 119,
+  foodMinX: 145, foodMaxX: 201, waterX: 204,
+};
 
 // Warm cozy palette inspired by retro pet games
 const C = {
@@ -147,6 +152,11 @@ async function loadGame() {
     selectedFoodIndex = data.selectedFoodIndex || 0;
     lastTimestamp = data.lastTimestamp || Date.now();
     wheelAngle = data.wheelAngle || 0;
+    if (hamster) {
+      hamster.posX = clampFloorX(Number.isFinite(hamster.posX) ? hamster.posX : 120);
+      hamster.targetX = clampFloorX(Number.isFinite(hamster.targetX) ? hamster.targetX : hamster.posX);
+      hamster.wheelPhase ||= null;
+    }
     if (state === STATES.LIVING && hamster && hamster.alive) simulateOffline();
     else if (state === STATES.LIVING && (!hamster || !hamster.alive)) state = STATES.ADOPT;
   }
@@ -176,7 +186,12 @@ function createHamster(name) {
     born: Date.now(),
     alive: true,
     facing: 1, // 1=right, -1=left
+    wheelPhase: null,
   };
+}
+
+function clampFloorX(x) {
+  return Math.max(HABITAT.floorMinX, Math.min(HABITAT.floorMaxX, x));
 }
 
 function getLifeStage(h) {
@@ -200,50 +215,74 @@ function simulateTick() {
   hamster.metrics.hunger += 0.15 * hamster.traits.metabolism;
   hamster.metrics.thirst += 0.2;
 
-  // Eating from ground food
-  if (hamster.metrics.hunger > 40 && foodOnGround.length > 0) {
+  // FIFO eating: approach the oldest piece, settle, then visibly nibble it.
+  if (hamster.metrics.hunger > 40 && foodOnGround.length > 0 &&
+      hamster.activity !== ACTIVITIES.RUNNING && hamster.activity !== ACTIVITIES.DRINKING) {
     if (hamster.activity !== ACTIVITIES.EATING) {
       hamster.activity = ACTIVITIES.EATING;
-      hamster.activityTimer = 15;
-      const nearestFood = foodOnGround[0];
-      hamster.targetX = nearestFood.x;
+      hamster.activityTimer = 18;
+      hamster.wheelPhase = null;
+      hamster.targetX = clampFloorX(foodOnGround[0].x);
     }
   }
 
   if (hamster.activity === ACTIVITIES.EATING && foodOnGround.length > 0 &&
       Math.abs(hamster.posX - foodOnGround[0].x) < 9) {
     const food = foodOnGround[0];
-    food.remaining -= 0.5;
-    hamster.metrics.hunger = Math.max(0, hamster.metrics.hunger - FOOD_TYPES[food.type].nutrition * 0.3);
-    hamster.metrics.thirst = Math.max(0, hamster.metrics.thirst - FOOD_TYPES[food.type].hydration * 0.2);
+    food.remaining -= 0.22;
+    hamster.metrics.hunger = Math.max(0, hamster.metrics.hunger - FOOD_TYPES[food.type].nutrition * 0.16);
+    hamster.metrics.thirst = Math.max(0, hamster.metrics.thirst - FOOD_TYPES[food.type].hydration * 0.12);
     const massGain = FOOD_TYPES[food.type].nutrition * 0.02;
     hamster.metrics.bodyMass += massGain * (hamster.lifeStage === LIFE_STAGES.JUVENILE ? 1.5 : 0.5);
-    if (food.remaining <= 0) foodOnGround.shift();
+    if (food.remaining <= 0) {
+      foodOnGround.shift();
+      hamster.activity = ACTIVITIES.IDLE;
+      hamster.activityTimer = 6;
+      hamster.targetX = clampFloorX(hamster.posX);
+    }
     eatingAnim++;
   }
 
-  if (hamster.metrics.thirst > 50 && hamster.activity !== ACTIVITIES.EATING) {
+  if (hamster.metrics.thirst > 50 && hamster.activity !== ACTIVITIES.EATING && hamster.activity !== ACTIVITIES.RUNNING) {
     if (hamster.activity !== ACTIVITIES.DRINKING) {
       hamster.activity = ACTIVITIES.DRINKING;
-      hamster.activityTimer = 8;
-      hamster.targetX = 210;
+      hamster.activityTimer = 10;
+      hamster.wheelPhase = null;
+      hamster.targetX = HABITAT.waterX;
     }
-    if (Math.abs(hamster.posX - 210) < 9) hamster.metrics.thirst = Math.max(0, hamster.metrics.thirst - 15);
+    if (Math.abs(hamster.posX - HABITAT.waterX) < 7) hamster.metrics.thirst = Math.max(0, hamster.metrics.thirst - 3);
   }
 
   const atTarget = Math.abs(hamster.posX - hamster.targetX) < 8;
-  // Activity time starts once the hamster physically reaches its destination.
-  if (atTarget || hamster.activity === ACTIVITIES.IDLE || hamster.activity === ACTIVITIES.GROOMING) {
-    hamster.activityTimer--;
-  }
-  if (hamster.activityTimer <= 0) chooseNextActivity();
-
-  if (hamster.activity === ACTIVITIES.RUNNING && atTarget) {
-    const speed = 0.5 + hamster.traits.wheelEnthusiasm * 0.5;
-    hamster.metrics.wheelDistance += speed;
-    wheelAngle += speed * 12;
-    hamster.metrics.bodyMass = Math.max(15, hamster.metrics.bodyMass - 0.01);
-    hamster.metrics.hunger += 0.1;
+  if (hamster.activity === ACTIVITIES.RUNNING) {
+    if (!hamster.wheelPhase) hamster.wheelPhase = 'approach';
+    if (hamster.wheelPhase === 'approach' && Math.abs(hamster.posX - HABITAT.wheelEntryX) < 4) {
+      hamster.wheelPhase = 'climb';
+      hamster.targetX = HABITAT.wheelCenterX;
+    } else if (hamster.wheelPhase === 'climb' && Math.abs(hamster.posX - HABITAT.wheelCenterX) < 4) {
+      hamster.wheelPhase = 'run';
+      hamster.activityTimer = 22 + Math.floor(Math.random() * 28);
+    } else if (hamster.wheelPhase === 'run') {
+      const speed = 0.5 + hamster.traits.wheelEnthusiasm * 0.5;
+      hamster.metrics.wheelDistance += speed;
+      wheelAngle += speed * 12;
+      hamster.metrics.bodyMass = Math.max(15, hamster.metrics.bodyMass - 0.01);
+      hamster.metrics.hunger += 0.1;
+      hamster.activityTimer--;
+      if (hamster.activityTimer <= 0) {
+        hamster.wheelPhase = 'exit';
+        hamster.targetX = HABITAT.wheelEntryX;
+      }
+    } else if (hamster.wheelPhase === 'exit' && Math.abs(hamster.posX - HABITAT.wheelEntryX) < 4) {
+      hamster.wheelPhase = null;
+      hamster.activity = ACTIVITIES.IDLE;
+      hamster.activityTimer = 8;
+      hamster.targetX = clampFloorX(66 + Math.random() * 42);
+    }
+  } else {
+    // Non-wheel activity time begins only after physical arrival.
+    if (atTarget || hamster.activity === ACTIVITIES.IDLE || hamster.activity === ACTIVITIES.GROOMING) hamster.activityTimer--;
+    if (hamster.activityTimer <= 0) chooseNextActivity();
   }
 
   if (hamster.activity === ACTIVITIES.GROOMING) {
@@ -276,6 +315,8 @@ function simulateTick() {
     const direction = Math.sign(hamster.targetX - hamster.posX);
     hamster.posX += direction * Math.min(1.35, Math.abs(hamster.targetX - hamster.posX));
   }
+  hamster.posX = clampFloorX(hamster.posX);
+  hamster.targetX = clampFloorX(hamster.targetX);
 
   if (hamster.metrics.ageTicks % 30 === 0) saveGame();
 }
@@ -285,20 +326,24 @@ function chooseNextActivity() {
   const wc = hamster.traits.wheelEnthusiasm * 0.3;
   if (hamster.metrics.hunger > 40 && foodOnGround.length > 0) {
     hamster.activity = ACTIVITIES.EATING;
-    hamster.activityTimer = 10 + Math.floor(Math.random() * 10);
-    hamster.targetX = foodOnGround[0].x;
+    hamster.activityTimer = 18;
+    hamster.wheelPhase = null;
+    hamster.targetX = clampFloorX(foodOnGround[0].x);
   } else if (r < wc && hamster.lifeStage !== LIFE_STAGES.SENIOR) {
     hamster.activity = ACTIVITIES.RUNNING;
-    hamster.activityTimer = 20 + Math.floor(Math.random() * 40);
-    hamster.targetX = 115;
+    hamster.activityTimer = 0;
+    hamster.wheelPhase = 'approach';
+    hamster.targetX = HABITAT.wheelEntryX;
   } else if (r < wc + 0.15) {
     hamster.activity = ACTIVITIES.SLEEPING;
     hamster.activityTimer = 30 + Math.floor(Math.random() * 30);
-    hamster.targetX = 36;
+    hamster.wheelPhase = null;
+    hamster.targetX = HABITAT.hideoutX;
   } else if (r < wc + 0.25) {
     hamster.activity = ACTIVITIES.HIDING;
     hamster.activityTimer = 15 + Math.floor(Math.random() * 20);
-    hamster.targetX = 36;
+    hamster.wheelPhase = null;
+    hamster.targetX = HABITAT.hideoutX;
   } else if (r < wc + 0.35) {
     hamster.activity = ACTIVITIES.GROOMING;
     hamster.activityTimer = 8 + Math.floor(Math.random() * 12);
@@ -306,7 +351,8 @@ function chooseNextActivity() {
   } else {
     hamster.activity = ACTIVITIES.IDLE;
     hamster.activityTimer = 10 + Math.floor(Math.random() * 20);
-    hamster.targetX = 60 + Math.floor(Math.random() * 100);
+    hamster.wheelPhase = null;
+    hamster.targetX = clampFloorX(62 + Math.floor(Math.random() * 106));
   }
 }
 
@@ -500,11 +546,21 @@ function drawMemorialMarks() {
     ctx.font = '5px monospace'; ctx.fillStyle = '#66503b'; ctx.fillText(labels[i], x, 48);
     ctx.fillStyle = '#3e3025'; ctx.fillText(records[i]?.name || '—', x, 55);
   }
-  ctx.font = 'bold 7px monospace'; ctx.fillStyle = '#4d3d2d'; ctx.fillText('FAMILY', 184, 19);
-  ctx.font = '5px monospace'; ctx.fillStyle = '#7f6044';
-  const family = memorial.lastFive.slice(-4);
-  family.forEach((name, i) => ctx.fillText(`${name}  ×`, 184, 32 + i * 9));
-  if (hamster) { ctx.fillStyle = '#30231b'; ctx.fillText(hamster.name, 184, 68); }
+  const familyX = 171;
+  ctx.font = 'bold 7px monospace'; ctx.fillStyle = '#4d3d2d'; ctx.fillText('FAMILY', familyX, 19);
+  ctx.font = '5px monospace';
+  const family = memorial.lastFive.slice(-5);
+  family.forEach((fullName, i) => {
+    const name = fullName.slice(0, 9);
+    const y = 31 + i * 8;
+    ctx.fillStyle = '#765c44'; ctx.fillText(name, familyX, y);
+    ctx.strokeStyle = '#9b4f3c'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(familyX, y + 3); ctx.lineTo(familyX + ctx.measureText(name).width, y + 3); ctx.stroke();
+  });
+  if (hamster?.alive) {
+    ctx.font = 'bold 5px monospace'; ctx.fillStyle = '#2f241c';
+    ctx.fillText(hamster.name.slice(0, 9), familyX, 74);
+  }
 }
 
 function drawHideout() {
@@ -569,7 +625,7 @@ function drawWheel() {
 }
 
 function drawWaterBottle() {
-  const bx = 199, by = 51;
+  const bx = 203, by = 51;
   
   // Metal bracket/holder
   roundRect(bx - 2, by - 8, 28, 8, 3, '#3f5b51');
@@ -602,19 +658,18 @@ function drawWaterBottle() {
     ctx.stroke();
   }
   
-  // Metal nozzle/spout
-  px(bx + 9, by + 65, 6, 48, '#777a72');
-  px(bx + 10, by + 65, 3, 46, '#c1bca9');
-  px(bx + 11, by + 108, 3, 5, '#696b65');
-  
-  // Ball bearing
-  ellipse(bx + 12, by + 113, 2, 2, '#d0d0d0');
+  // Angled metal nozzle leaves a clear Family column and meets the drink pose.
+  ctx.strokeStyle = '#676a64'; ctx.lineWidth = 6; ctx.lineCap = 'square';
+  ctx.beginPath(); ctx.moveTo(bx + 12, by + 65); ctx.lineTo(HABITAT.waterX, by + 113); ctx.stroke();
+  ctx.strokeStyle = '#c7c1ae'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(bx + 10, by + 66); ctx.lineTo(HABITAT.waterX - 1, by + 111); ctx.stroke();
+  ellipse(HABITAT.waterX, by + 113, 2, 2, '#d0d0d0');
   
   // Drip animation
   const dripPhase = animFrame % 180;
   if (dripPhase < 30) {
     const dropY = by + 115 + dripPhase * 0.35;
-    ellipse(bx + 12, dropY, 1.5, 2, C.water);
+    ellipse(HABITAT.waterX, dropY, 1.5, 2, C.water);
   }
 }
 
@@ -634,6 +689,7 @@ function drawFallingFood() {
     f.vy += 0.6;
     f.y += f.vy;
     f.x += f.vx || 0;
+    f.x = Math.max(HABITAT.foodMinX, Math.min(HABITAT.foodMaxX, f.x));
     f.rotation = (f.rotation || 0) + 0.1;
     
     const groundY = 219 - Math.min(13, Math.floor(foodOnGround.length / 6) * 2);
@@ -665,9 +721,17 @@ function drawFallingFood() {
 
 function drawHamster() {
   if (!hamster || !hamster.alive) return;
-  const inWheel = hamster.activity === ACTIVITIES.RUNNING && Math.abs(hamster.posX - hamster.targetX) < 8;
-  const x = inWheel ? 119 : Math.floor(hamster.posX);
-  const groundY = inWheel ? 177 : 218;
+  const wheelPhase = hamster.activity === ACTIVITIES.RUNNING ? hamster.wheelPhase : null;
+  const inWheel = wheelPhase === 'run';
+  const x = inWheel ? HABITAT.wheelCenterX : Math.floor(clampFloorX(hamster.posX));
+  let groundY = inWheel ? 177 : 218;
+  if (wheelPhase === 'climb') {
+    const p = Math.max(0, Math.min(1, (hamster.posX - HABITAT.wheelEntryX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
+    groundY = 218 - p * 41;
+  } else if (wheelPhase === 'exit') {
+    const p = Math.max(0, Math.min(1, (HABITAT.wheelCenterX - hamster.posX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
+    groundY = 177 + p * 41;
+  }
   
   // Size scaling
   let baseR = 16;
@@ -690,7 +754,7 @@ function drawHamster() {
   }
   
   // Sleeping - curled ball
-  if (hamster.activity === ACTIVITIES.SLEEPING) {
+  if (hamster.activity === ACTIVITIES.SLEEPING && Math.abs(hamster.posX - HABITAT.hideoutX) < 6) {
     const breathe = Math.sin(animFrame * 0.06) * 1.5;
     ellipse(x, groundY - r * 0.4, r * 1.1 + breathe, r * 0.6, C.hamOrange);
     ellipse(x, groundY - r * 0.3, r * 0.7, r * 0.35, C.hamBelly);
@@ -717,8 +781,8 @@ function drawHamster() {
     return;
   }
 
-  if (hamster.activity === ACTIVITIES.DRINKING && Math.abs(hamster.posX - 210) < 9) {
-    drawDrinkingPose(210, r);
+  if (hamster.activity === ACTIVITIES.DRINKING && Math.abs(hamster.posX - HABITAT.waterX) < 7) {
+    drawDrinkingPose(HABITAT.waterX, r);
     return;
   }
 
@@ -731,7 +795,7 @@ function drawHamster() {
     dy = Math.abs(Math.sin(animFrame * 0.55)) * -3;
   }
   
-  const bodyY = groundY - r + dy;
+  const bodyY = groundY - r * 0.62 + dy;
 
   // Shadow
   ctx.globalAlpha = 0.1;
@@ -739,11 +803,11 @@ function drawHamster() {
   ctx.globalAlpha = 1;
 
   // TAIL (behind body)
-  ellipse(x - f * r * 0.9, bodyY + r * 0.3, 4, 3, C.hamGold);
+  ellipse(x - f * r * 1.08, bodyY + r * 0.08, 4, 3, C.hamGold);
 
   // BODY - round and chunky
-  ellipse(x, bodyY, r * 1.04, r * 1.08, '#b8662c');
-  ellipse(x - f * r * 0.42, bodyY - r * 0.08, r * 0.48, r * 0.68, C.hamGold);
+  ellipse(x, bodyY, r * 1.18, r * 0.68, '#b8662c');
+  ellipse(x - f * r * 0.44, bodyY - r * 0.05, r * 0.6, r * 0.48, C.hamGold);
   px(x - f * 8, bodyY - 7, 3, 2, '#d4873e');
   px(x - f * 11, bodyY + 2, 2, 3, '#88461f');
   px(x + f * 9, bodyY + 8, 2, 2, '#d58a45');
@@ -751,16 +815,18 @@ function drawHamster() {
   // Body dark edge (top stripe)
   ctx.fillStyle = C.hamDarkStripe;
   ctx.beginPath();
-  ctx.ellipse(x, bodyY - r * 0.4, r * 0.5, r * 0.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(x - f * 2, bodyY - r * 0.32, r * 0.62, r * 0.14, 0, 0, Math.PI * 2);
   ctx.fill();
 
   // BELLY - cream white
-  ellipse(x, bodyY + r * 0.28, r * 0.68, r * 0.67, '#f5dfbd');
+  ellipse(x + f * r * .2, bodyY + r * 0.26, r * 0.72, r * 0.32, '#f5dfbd');
 
   // HEAD (slightly forward)
-  const headX = x + f * r * 0.34;
-  const headY = bodyY - r * 0.6;
-  const headR = r * 0.7;
+  const headX = x + f * r * 0.76;
+  const engagedEating = hamster.activity === ACTIVITIES.EATING && foodOnGround[0] && Math.abs(hamster.posX - foodOnGround[0].x) < 9;
+  let headY = bodyY - r * 0.12;
+  if (engagedEating) headY += 4 + Math.sin(animFrame * .55) * 1.5;
+  const headR = r * 0.58;
   ellipse(headX, headY, headR * 1.08, headR * 0.98, '#cc7934');
   px(headX - 7, headY - 7, 3, 2, '#e09249');
   px(headX + 6, headY + 7, 2, 2, '#9f5126');
@@ -844,15 +910,17 @@ function drawHamster() {
   // Front paws (visible when idle/eating)
   if (hamster.activity === ACTIVITIES.EATING || hamster.activity === ACTIVITIES.GROOMING) {
     const pawUp = Math.sin(animFrame * 0.4) * 2;
-    ellipse(x - 5, bodyY + r * 0.4 + pawUp, 3, 3, C.hamPaw);
-    ellipse(x + 5, bodyY + r * 0.4 - pawUp, 3, 3, C.hamPaw);
+    ellipse(headX - f * 5, bodyY + r * 0.42 + pawUp, 3, 3, C.hamPaw);
+    ellipse(headX - f * 10, bodyY + r * 0.42 - pawUp, 3, 3, C.hamPaw);
     // Tiny toes
     px(x - 6, bodyY + r * 0.4 + pawUp + 1, 1, 1, C.hamPinkDark);
     px(x + 5, bodyY + r * 0.4 - pawUp + 1, 1, 1, C.hamPinkDark);
   }
   // Back feet always visible
-  ellipse(x - r * 0.3, pawY, 4, 2.5, C.hamPaw);
-  ellipse(x + r * 0.3, pawY, 4, 2.5, C.hamPaw);
+  const walking = Math.abs(hamster.posX - hamster.targetX) > 2 && !inWheel;
+  const stride = walking ? Math.sin(animFrame * .42) * 4 : 0;
+  ellipse(x - f * r * .55 + stride, pawY, 4, 2.5, C.hamPaw);
+  ellipse(x + f * r * .58 - stride, pawY, 4, 2.5, C.hamPaw);
 
   // ACTIVITY-SPECIFIC ANIMATIONS
   if (hamster.activity === ACTIVITIES.EATING && foodOnGround.length > 0) {
@@ -860,7 +928,7 @@ function drawHamster() {
     const bobble = Math.sin(animFrame * 0.6) * 1;
     const biteType = foodOnGround[0].type;
     drawFoodSprite(biteType, headX + f * 6, headY + headR * 0.52 + bobble,
-      Math.min(0.75, FOOD_TYPES[biteType].worldScale * 0.48));
+      Math.min(1, FOOD_TYPES[biteType].worldScale * 0.65));
     if (animFrame % 18 < 3) {
       px(headX + f * 11, headY + 8, 1, 1, '#7f5b31');
       px(headX + f * 13, headY + 11, 1, 1, '#b7894c');
@@ -891,20 +959,24 @@ function drawHamster() {
 
 function drawDrinkingPose(x, r) {
   const sip = Math.sin(animFrame * 0.34) * 1.2;
-  const bodyY = 199;
-  ctx.globalAlpha = .14; ellipse(x, 220, 13, 3, '#20170f'); ctx.globalAlpha = 1;
-  ellipse(x, bodyY, r * .72, r, '#a95729');
-  ellipse(x, bodyY + 5, r * .48, r * .68, '#f2d7ad');
-  ellipse(x, 176 + sip, r * .62, r * .56, '#c87332');
-  ellipse(x - 8, 169 + sip, 4, 5, '#9d4e29'); ellipse(x - 8, 169 + sip, 2, 3, '#df8b84');
-  ellipse(x + 8, 169 + sip, 4, 5, '#9d4e29'); ellipse(x + 8, 169 + sip, 2, 3, '#df8b84');
-  ellipse(x - 5, 175 + sip, 2.3, 3, '#241812'); ellipse(x + 5, 175 + sip, 2.3, 3, '#241812');
-  px(x - 5, 173 + sip, 1, 1, '#fff4dd'); px(x + 5, 173 + sip, 1, 1, '#fff4dd');
-  ellipse(x, 168 + sip, 2, 1.5, '#c56f70');
-  ellipse(x - 7, 184, 3, 4, '#efd0a6'); ellipse(x + 7, 184, 3, 4, '#efd0a6');
+  const bodyX = x - 12, bodyY = 207;
+  ctx.globalAlpha = .14; ellipse(bodyX, 220, 19, 3, '#20170f'); ctx.globalAlpha = 1;
+  // Hindquarters stay low while the spine stretches toward the nozzle.
+  ellipse(bodyX - 2, bodyY, r * .9, r * .54, '#a95729');
+  ellipse(bodyX - 5, bodyY + 4, r * .55, r * .3, '#f2d7ad');
+  ctx.fillStyle = '#b9662e'; ctx.beginPath();
+  ctx.moveTo(bodyX + 5, bodyY - 6); ctx.lineTo(x - 4, 179 + sip); ctx.lineTo(x + 3, 185 + sip); ctx.lineTo(bodyX + 12, bodyY + 5); ctx.closePath(); ctx.fill();
+  ellipse(x - 1, 177 + sip, r * .55, r * .5, '#c87332');
+  ellipse(x - 8, 171 + sip, 4, 5, '#9d4e29'); ellipse(x - 8, 171 + sip, 2, 3, '#df8b84');
+  ellipse(x + 5, 171 + sip, 4, 5, '#9d4e29'); ellipse(x + 5, 171 + sip, 2, 3, '#df8b84');
+  ellipse(x - 4, 177 + sip, 2.3, 3, '#241812'); ellipse(x + 3, 177 + sip, 2.3, 3, '#241812');
+  px(x - 4, 175 + sip, 1, 1, '#fff4dd'); px(x + 3, 175 + sip, 1, 1, '#fff4dd');
+  ellipse(x, 166 + sip, 2, 1.5, '#c56f70');
+  ellipse(x - 7, 192, 3, 3, '#efd0a6'); ellipse(x + 1, 190, 3, 3, '#efd0a6');
+  ellipse(bodyX - 12, 216, 5, 2.5, '#efd0a6'); ellipse(bodyX + 1, 217, 5, 2.5, '#efd0a6');
   ctx.strokeStyle = '#67412c'; ctx.lineWidth = .7; ctx.beginPath();
-  ctx.moveTo(x - 5, 179); ctx.lineTo(x - 14, 176); ctx.moveTo(x + 5, 179); ctx.lineTo(x + 14, 176); ctx.stroke();
-  if (animFrame % 22 < 8) ellipse(x + 1, 164, 1, 2, '#8ccbd0');
+  ctx.moveTo(x - 4, 181); ctx.lineTo(x - 13, 178); ctx.moveTo(x + 3, 181); ctx.lineTo(x + 10, 178); ctx.stroke();
+  if (animFrame % 22 < 8) ellipse(x, 163, 1, 2, '#8ccbd0');
 }
 
 // ============================================================
@@ -1335,7 +1407,7 @@ function dropFood() {
   if (!hamster || !hamster.alive) return;
   fallingFood.push({
     type: selectedFoodIndex,
-    x: 148 + Math.random() * 62,
+    x: HABITAT.foodMinX + Math.random() * (HABITAT.foodMaxX - HABITAT.foodMinX),
     y: 20,
     vy: 0,
     vx: (Math.random() - 0.5) * 2.5,
@@ -1388,9 +1460,9 @@ async function init() {
     ];
     const activityPreview = new URLSearchParams(window.location.search).get('activity');
     if (activityPreview === 'eating') { hamster.activity = ACTIVITIES.EATING; hamster.posX = 181; hamster.targetX = 181; }
-    if (activityPreview === 'running') { hamster.activity = ACTIVITIES.RUNNING; hamster.posX = 115; hamster.targetX = 115; }
-    if (activityPreview === 'sleeping') { hamster.activity = ACTIVITIES.SLEEPING; hamster.posX = 36; hamster.targetX = 36; }
-    if (activityPreview === 'drinking') { hamster.activity = ACTIVITIES.DRINKING; hamster.posX = 210; hamster.targetX = 210; }
+    if (activityPreview === 'running') { hamster.activity = ACTIVITIES.RUNNING; hamster.wheelPhase = 'run'; hamster.activityTimer = 999; hamster.posX = HABITAT.wheelCenterX; hamster.targetX = HABITAT.wheelCenterX; }
+    if (activityPreview === 'sleeping') { hamster.activity = ACTIVITIES.SLEEPING; hamster.posX = HABITAT.hideoutX; hamster.targetX = HABITAT.hideoutX; }
+    if (activityPreview === 'drinking') { hamster.activity = ACTIVITIES.DRINKING; hamster.posX = HABITAT.waterX; hamster.targetX = HABITAT.waterX; }
     state = STATES.LIVING;
   }
   lastFrameTime = Date.now();
