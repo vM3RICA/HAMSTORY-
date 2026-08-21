@@ -482,9 +482,11 @@ function drawFoodSprite(type, fx, fy, scale) {
   
   switch (type) {
     case 0: // Pellets - small brown nuggets
+      ellipse(0, 1, 3.5, 2.4, '#4f381c');
       ellipse(0, 0, 3, 2, '#8B6914');
       px(-2, -1, 1, 1, '#a08020');
       ellipse(2, 1, 2, 1.5, '#7a5810');
+      px(0, -1, 2, 1, '#c39a42'); px(-2, 1, 1, 1, '#5d431c');
       break;
     case 1: // Millet - tiny golden spray
       px(-2, -2, 1, 1, '#DAA520');
@@ -492,6 +494,7 @@ function drawFoodSprite(type, fx, fy, scale) {
       px(-1, 0, 1, 1, '#DAA520');
       px(1, 1, 1, 1, '#c89018');
       px(-1, -3, 1, 2, '#90a040');
+      px(2, -1, 1, 1, '#f0d269'); px(-3, 0, 1, 1, '#8b6a18');
       break;
     case 2: // Sunflower seed - black striped teardrop
       px(-2, -4, 4, 7, '#2a2a2a');
@@ -500,6 +503,7 @@ function drawFoodSprite(type, fx, fy, scale) {
       px(0, -2, 1, 3, '#606060');
       px(-2, 3, 4, 1, '#1a1a1a');
       px(-1, -5, 2, 1, '#f0f0e0');
+      px(-1, -2, 1, 4, '#d7d1ba'); px(1, 1, 1, 1, '#77705f');
       break;
     case 3: // Broccoli - big green floret
       ellipse(0, -4, 6, 5, '#47753a');
@@ -510,6 +514,8 @@ function drawFoodSprite(type, fx, fy, scale) {
       px(2, -2, 1, 1, '#86a65d');
       px(-1, 1, 2, 5, '#789150');
       px(0, 3, 1, 2, '#596f3d');
+      px(-4, -5, 1, 1, '#9bb56b'); px(3, -4, 1, 1, '#243f25');
+      px(0, -7, 1, 1, '#b2c77c'); px(-1, 3, 1, 2, '#9eae69');
       break;
     case 4: // Carrot - orange with green top
       px(-1, -2, 3, 3, '#c9682f');
@@ -520,6 +526,8 @@ function drawFoodSprite(type, fx, fy, scale) {
       px(-2, -4, 1, 3, '#3a8a3a');
       px(0, -5, 1, 3, '#2a7a2a');
       px(1, -4, 1, 2, '#4a9a4a');
+      px(-1, 1, 2, 1, '#e39a59'); px(0, 3, 1, 1, '#72331e');
+      px(-2, -1, 1, 1, '#8e3f23');
       break;
     case 5: // Banana - curved yellow
       px(-5, 0, 10, 3, '#d9b93f');
@@ -528,12 +536,15 @@ function drawFoodSprite(type, fx, fy, scale) {
       px(4, -1, 1, 2, '#8B6914');
       px(-5, 2, 1, 1, '#a08020');
       px(-3, 0, 2, 1, '#fff880');
+      px(0, 2, 1, 1, '#8f7625'); px(3, 1, 1, 1, '#f3df78');
       break;
     case 6: // Egg - smooth white oval
-      ellipse(0, 0, 4, 5, '#fffde0');
-      ellipse(0, 1, 3.5, 4, '#fff');
+      ellipse(0, 1, 4.6, 5.6, '#a99373');
+      ellipse(0, 0, 4, 5, '#e8dfc9');
+      ellipse(-.5, 1, 3.2, 4, '#f8f1df');
       px(-1, -3, 2, 1, '#fff');
       ellipse(0, 3, 3, 2, '#f0e8d0');
+      px(2, -1, 1, 1, '#c8b999'); px(-2, 2, 1, 1, '#fffaf0');
       break;
   }
   ctx.restore();
@@ -643,7 +654,7 @@ function drawMemorialMarks() {
 
 function drawHideout() {
   if (habitatHideout.complete && habitatHideout.naturalWidth) {
-    ctx.drawImage(habitatHideout, 5, 158, 65, 59);
+    ctx.drawImage(habitatHideout, 1, 148, 78, 71);
     return;
   }
   const x = 15, y = 165;
@@ -727,7 +738,7 @@ function drawWheel() {
 
 function drawWaterBottle() {
   if (habitatBottle.complete && habitatBottle.naturalWidth) {
-    ctx.drawImage(habitatBottle, 194, 35, 39, 126);
+    ctx.drawImage(habitatBottle, 187, 25, 49, 143);
     const dripPhase = animFrame % 180;
     if (dripPhase < 30) ellipse(HABITAT.waterX, 165 + dripPhase * .28, 1.3, 1.8, C.water);
     return;
@@ -889,6 +900,7 @@ function drawQuillBody(x, y, r, a) {
 
 function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
   const running = wheelPhase === 'run';
+  const climbing = wheelPhase === 'climb' || wheelPhase === 'exit';
   const walking = Math.abs(hedgehog.posX - hedgehog.targetX) > 2 || running;
   const eating = hedgehog.activity === ACTIVITIES.EATING && foodOnGround[0] &&
     Math.abs(hedgehog.posX - foodOnGround[0].x) < 9;
@@ -916,6 +928,14 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
     // Gentle breathing keeps the master artwork from feeling pasted in place.
     scaleX = 1 - Math.sin(animFrame * .045) * .006;
     scaleY = 1 + Math.sin(animFrame * .045) * .012;
+  }
+
+  if (climbing) {
+    // Lean into the wheel while alternating front-paw grip and hind-leg push.
+    const climbStep = Math.sin(walkPhase * 1.35);
+    angle += f * (-.1 + climbStep * .025);
+    scaleX *= .97;
+    scaleY *= 1.03;
   }
 
   if (eating) {
@@ -973,6 +993,22 @@ function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
         px(footX - f * 2, groundY + 1, 2, 1, C.beddingLight);
       }
     }
+  }
+
+
+  if (climbing) {
+    const grip = Math.sin(walkPhase * 1.35);
+    const pawBaseX = drawX + f * width * .31;
+    const pawBaseY = drawGround - height * .2;
+    // Front paws visibly reach and hold the lower wheel tread.
+    for (let i = 0; i < 2; i++) {
+      const reach = (i ? -grip : grip) * 2;
+      ctx.strokeStyle = '#c88270'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(pawBaseX - f * i * 4, pawBaseY + i * 3);
+      ctx.lineTo(pawBaseX + f * (5 + reach), pawBaseY - 3 + i * 4); ctx.stroke();
+      ellipse(pawBaseX + f * (6 + reach), pawBaseY - 3 + i * 4, 3.3, 1.6, '#df9d86');
+    }
+    ctx.lineCap = 'butt';
   }
 
   ctx.save();
@@ -1134,10 +1170,14 @@ function drawHedgehog() {
   let groundY = inWheel ? 177 : 218;
   if (wheelPhase === 'climb') {
     const p = Math.max(0, Math.min(1, (hedgehog.posX - HABITAT.wheelEntryX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
-    groundY = 218 - p * 41;
+    const grip = Math.max(0, Math.min(1, (p - .18) / .82));
+    const eased = grip * grip * (3 - 2 * grip);
+    groundY = 218 - eased * 41;
   } else if (wheelPhase === 'exit') {
     const p = Math.max(0, Math.min(1, (HABITAT.wheelCenterX - hedgehog.posX) / (HABITAT.wheelCenterX - HABITAT.wheelEntryX)));
-    groundY = 177 + p * 41;
+    const release = p < .82 ? p / .82 : 1;
+    const eased = release * release * (3 - 2 * release);
+    groundY = 177 + eased * 41;
   }
   
   // Size scaling
@@ -1832,11 +1872,11 @@ function updateLiveMovement(deltaMs) {
   const direction = Math.sign(distance);
   const climbing = hedgehog.activity === ACTIVITIES.RUNNING &&
     (hedgehog.wheelPhase === 'climb' || hedgehog.wheelPhase === 'exit');
-  const speed = climbing ? 13 : 9; // pixels per second
+  const speed = climbing ? 8 : 9; // deliberate climbing is slower than floor travel
   const step = Math.min(Math.abs(distance), speed * Math.min(deltaMs, 50) / 1000);
   hedgehog.posX = clampFloorX(hedgehog.posX + direction * step);
   hedgehog.facing = direction;
-  if (!climbing) walkPhase = (walkPhase + step * .58) % (Math.PI * 2);
+  walkPhase = (walkPhase + step * (climbing ? 1.05 : .58)) % (Math.PI * 2);
 }
 
 function gameLoop() {
