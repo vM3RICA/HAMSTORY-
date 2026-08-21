@@ -28,6 +28,7 @@ const HABITAT = {
   hideoutX: 47, wheelEntryX: 87, wheelCenterX: 119,
   foodMinX: 145, foodMaxX: 201, waterX: 204,
 };
+const HABITAT_VIEW = { scale: 1.12, focusX: 120, focusY: 218 };
 
 // Warm cozy palette inspired by retro pet games
 const C = {
@@ -1855,8 +1856,13 @@ function render() {
     case STATES.ADOPT: drawAdoptScreen(); break;
     case STATES.NAMING: drawNamingScreen(); break;
     case STATES.LIVING:
+      ctx.save();
+      ctx.translate(HABITAT_VIEW.focusX, HABITAT_VIEW.focusY);
+      ctx.scale(HABITAT_VIEW.scale, HABITAT_VIEW.scale);
+      ctx.translate(-HABITAT_VIEW.focusX, -HABITAT_VIEW.focusY);
       drawHabitat();
       drawHedgehog();
+      ctx.restore();
       drawUI();
       drawMessage();
       break;
