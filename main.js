@@ -19,6 +19,8 @@ const FOOD_TYPES = [
   { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.95, decayMinutes: 2160 },
   { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 2.2, decayMinutes: 1440 },
 ];
+const CLEAN_CAGE_SELECTION = FOOD_TYPES.length;
+const SELECTOR_COUNT = FOOD_TYPES.length + 1;
 
 const LIFE_STAGES = { JUVENILE: 0, ADULT: 1, SENIOR: 2 };
 const STAGE_NAMES = ['Baby', 'Adult', 'Elder'];
@@ -29,6 +31,7 @@ const HABITAT = {
   foodMinX: 145, foodMaxX: 201, waterX: 204,
 };
 const HABITAT_VIEW = { scale: 1.12, focusX: 120, focusY: 218 };
+const BOTTLE_NOZZLE = { x: 193, y: 162 };
 
 // Warm cozy palette inspired by retro pet games
 const C = {
@@ -170,7 +173,9 @@ async function loadGame() {
     hedgehog = data.hedgehog || data.hamster;
     foodOnGround = (data.foodOnGround || data.foodQueue || []).map(food => ({ ageMinutes: 0, ...food }));
     memorial = data.memorial || { legends: { oldest: null, heaviest: null, longestRunner: null }, lastFive: [] };
-    selectedFoodIndex = data.selectedFoodIndex || 0;
+    selectedFoodIndex = Number.isInteger(data.selectedFoodIndex)
+      ? Math.max(0, Math.min(CLEAN_CAGE_SELECTION, data.selectedFoodIndex))
+      : 0;
     lastTimestamp = data.lastTimestamp || Date.now();
     wheelAngle = data.wheelAngle || 0;
     if (hedgehog) {
@@ -739,9 +744,12 @@ function drawWheel() {
 
 function drawWaterBottle() {
   if (habitatBottle.complete && habitatBottle.naturalWidth) {
-    ctx.drawImage(habitatBottle, 12, 0, 61, 128, 181, 18, 56, 151);
+    ctx.drawImage(habitatBottle, 12, 0, 61, 128, 177, 18, 64, 151);
     const dripPhase = animFrame % 180;
-    if (dripPhase < 30) ellipse(HABITAT.waterX, 165 + dripPhase * .28, 1.3, 1.8, C.water);
+    if (dripPhase < 30) {
+      const dropY = BOTTLE_NOZZLE.y + 2 + dripPhase * .28;
+      ellipse(BOTTLE_NOZZLE.x, dropY, 1.3, 1.8, C.water);
+    }
     return;
   }
   const bx = 203, by = 51;
@@ -1555,17 +1563,32 @@ function drawDrinkingPose(x, r, a) {
 // ============================================================
 
 function drawUI() {
-  // A narrow wooden ledge is the only control surface; no stats or meters.
+  // The food selector fills the lower control ledge for maximum r1 legibility.
   roundRect(0, 248, W, 34, 0, '#3d342a');
   px(0, 248, W, 3, '#8f7658');
-  const food = FOOD_TYPES[selectedFoodIndex];
-  roundRect(7, 254, 226, 23, 4, '#b99a70');
-  px(9, 256, 222, 2, '#d7bc91');
+  const cleaning = selectedFoodIndex === CLEAN_CAGE_SELECTION;
+  const food = cleaning ? null : FOOD_TYPES[selectedFoodIndex];
+  roundRect(3, 251, 234, 30, 4, '#b99a70');
+  px(5, 253, 230, 2, '#e3c99f');
+  px(5, 278, 230, 1, '#765b41');
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-  ctx.font = 'bold 13px monospace'; ctx.fillStyle = '#f2e1c2'; ctx.fillText('‹', 13, 266); ctx.fillText('›', 218, 266);
-  drawFoodSprite(selectedFoodIndex, 43, 266, 1.6);
-  ctx.font = 'bold 8px monospace'; ctx.fillStyle = '#2f261e'; ctx.fillText(food.name.toUpperCase(), 61, 263);
-  ctx.font = '6px monospace'; ctx.fillStyle = '#604a36'; ctx.fillText('SCROLL • PRESS TO DROP', 61, 272);
+  ctx.font = 'bold 18px monospace'; ctx.fillStyle = '#fff0d4'; ctx.fillText('‹', 10, 266); ctx.fillText('›', 220, 266);
+  if (cleaning) {
+    // Small broom icon, drawn in the same warm pixel language as the habitat.
+    ctx.save();
+    ctx.translate(43, 265);
+    ctx.rotate(-0.45);
+    px(-1, -10, 3, 14, '#6b4327');
+    px(-5, 3, 11, 4, '#d39a45');
+    px(-6, 7, 13, 2, '#9c672e');
+    ctx.restore();
+    ctx.font = 'bold 10px monospace'; ctx.fillStyle = '#2b2119'; ctx.fillText('CLEAN CAGE', 63, 260);
+    ctx.font = 'bold 7px monospace'; ctx.fillStyle = '#4e3a29'; ctx.fillText('PRESS TO REMOVE ALL FOOD', 63, 272);
+  } else {
+    drawFoodSprite(selectedFoodIndex, 43, 266, 1.9);
+    ctx.font = 'bold 10px monospace'; ctx.fillStyle = '#2b2119'; ctx.fillText(food.name.toUpperCase(), 63, 260);
+    ctx.font = 'bold 7px monospace'; ctx.fillStyle = '#4e3a29'; ctx.fillText('SCROLL  •  PRESS TO DROP', 63, 272);
+  }
 }
 
 // ============================================================
@@ -1913,7 +1936,7 @@ window.addEventListener('scrollUp', () => {
   switch (state) {
     case STATES.ADOPT: if (memorial.lastFive.length > 0) state = STATES.MEMORIAL; break;
     case STATES.NAMING: namingCharIndex = (namingCharIndex - 1 + NAMING_OPTIONS.length) % NAMING_OPTIONS.length; break;
-    case STATES.LIVING: selectedFoodIndex = (selectedFoodIndex - 1 + FOOD_TYPES.length) % FOOD_TYPES.length; break;
+    case STATES.LIVING: selectedFoodIndex = (selectedFoodIndex - 1 + SELECTOR_COUNT) % SELECTOR_COUNT; break;
   }
 });
 
@@ -1921,7 +1944,7 @@ window.addEventListener('scrollDown', () => {
   switch (state) {
     case STATES.ADOPT: if (memorial.lastFive.length > 0) state = STATES.MEMORIAL; break;
     case STATES.NAMING: namingCharIndex = (namingCharIndex + 1) % NAMING_OPTIONS.length; break;
-    case STATES.LIVING: selectedFoodIndex = (selectedFoodIndex + 1) % FOOD_TYPES.length; break;
+    case STATES.LIVING: selectedFoodIndex = (selectedFoodIndex + 1) % SELECTOR_COUNT; break;
   }
 });
 
@@ -1957,6 +1980,14 @@ function finishNaming() {
 
 function dropFood() {
   if (!hedgehog || !hedgehog.alive) return;
+  if (selectedFoodIndex === CLEAN_CAGE_SELECTION) {
+    const removed = foodOnGround.length + fallingFood.length;
+    foodOnGround = [];
+    fallingFood = [];
+    showMessage(removed > 0 ? 'Cage cleaned!' : 'The cage is already clean');
+    saveGame();
+    return;
+  }
   fallingFood.push({
     type: selectedFoodIndex,
     x: HABITAT.foodMinX + Math.random() * (HABITAT.foodMaxX - HABITAT.foodMinX),
