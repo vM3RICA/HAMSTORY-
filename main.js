@@ -6,6 +6,7 @@ const DAY_TICKS = 1440; // ageTicks are real-world minutes
 const ACTIVE_MINUTES_PER_TICK = 1 / 60; // one live second advances one simulated second
 const OFFLINE_TICK_MS = 60000; // offline progression advances once per elapsed minute
 const PX = 2; // pixel grid size for retro feel
+const PREVIEW_FREEZE = new URLSearchParams(window.location.search).has('freeze');
 
 const STATES = { ADOPT: 0, NAMING: 1, LIVING: 2, DEATH: 3, MEMORIAL: 4 };
 
@@ -77,6 +78,15 @@ const C = {
   hamPaw: '#f8d8b0',
 };
 
+const HAMSTER_LOOKS = [
+  { coat: '#c97832', light: '#e2964c', dark: '#754322', belly: '#fff1d2', cheek: '#ffe0b0', pattern: 'stripe' },
+  { coat: '#e4c79e', light: '#f3dfbd', dark: '#9b7659', belly: '#fff7e8', cheek: '#f5d4bd', pattern: 'band' },
+  { coat: '#89847b', light: '#aaa49a', dark: '#4d4a47', belly: '#eee8dc', cheek: '#d8c5b4', pattern: 'sable' },
+  { coat: '#4c4038', light: '#75645a', dark: '#261f1c', belly: '#f1e3cd', cheek: '#d9bca6', pattern: 'bib' },
+  { coat: '#b76b50', light: '#d58d6c', dark: '#6d3d32', belly: '#f8e4ca', cheek: '#edc4ad', pattern: 'patches' },
+  { coat: '#eee0c4', light: '#fff3dc', dark: '#b38a5d', belly: '#fffaf0', cheek: '#f5d9c1', pattern: 'hood' },
+];
+
 const NAMING_OPTIONS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ ', 'DELETE', 'DONE'];
 
 // ============================================================
@@ -98,6 +108,7 @@ let namingCharIndex = 0;
 let deathCause = '';
 let deathTimer = 0;
 let wheelAngle = 0;
+let walkPhase = 0;
 let eatingAnim = 0;
 let groomAnim = 0;
 let messageTimer = 0;
@@ -160,6 +171,8 @@ async function loadGame() {
       hamster.posX = clampFloorX(Number.isFinite(hamster.posX) ? hamster.posX : 120);
       hamster.targetX = clampFloorX(Number.isFinite(hamster.targetX) ? hamster.targetX : hamster.posX);
       hamster.wheelPhase ||= null;
+      hamster.appearance ||= stableAppearanceFor(hamster);
+      if (!Number.isInteger(memorial.lastLookIndex)) memorial.lastLookIndex = hamster.appearance.lookIndex;
     }
     if (state === STATES.LIVING && hamster && hamster.alive) simulateOffline();
     else if (state === STATES.LIVING && (!hamster || !hamster.alive)) state = STATES.ADOPT;
@@ -171,6 +184,9 @@ async function loadGame() {
 // ============================================================
 
 function createHamster(name) {
+  const previousLook = Number.isInteger(memorial.lastLookIndex) ? memorial.lastLookIndex : -1;
+  const lookIndex = (previousLook + 1) % HAMSTER_LOOKS.length;
+  memorial.lastLookIndex = lookIndex;
   return {
     name,
     traits: {
@@ -191,7 +207,17 @@ function createHamster(name) {
     alive: true,
     facing: 1, // 1=right, -1=left
     wheelPhase: null,
+    appearance: { ...HAMSTER_LOOKS[lookIndex], lookIndex },
   };
+}
+
+function stableAppearanceFor(h) {
+  if (h?.appearance) return h.appearance;
+  const source = `${h?.name || 'HAMSTER'}:${h?.born || 0}`;
+  let hash = 0;
+  for (let i = 0; i < source.length; i++) hash = ((hash << 5) - hash + source.charCodeAt(i)) | 0;
+  const lookIndex = Math.abs(hash) % HAMSTER_LOOKS.length;
+  return { ...HAMSTER_LOOKS[lookIndex], lookIndex };
 }
 
 function clampFloorX(x) {
@@ -314,9 +340,10 @@ function simulateTick(timeScaleMinutes = ACTIVE_MINUTES_PER_TICK, offline = fals
   if (hamster.metrics.health <= 0) triggerDeath(ageDays);
   else if (ageDays >= hamster.traits.lifespan) { hamster.metrics.health = 0; triggerDeath(ageDays); }
 
-  if (Math.abs(hamster.posX - hamster.targetX) > 2) {
+  // Offline simulation still resolves travel; live travel is frame-synchronized.
+  if (offline && Math.abs(hamster.posX - hamster.targetX) > 2) {
     const direction = Math.sign(hamster.targetX - hamster.posX);
-    hamster.posX += direction * Math.min(1.35, Math.abs(hamster.targetX - hamster.posX));
+    hamster.posX += direction * Math.min(8, Math.abs(hamster.targetX - hamster.posX));
   }
   hamster.posX = clampFloorX(hamster.posX);
   hamster.targetX = clampFloorX(hamster.targetX);
@@ -724,6 +751,7 @@ function drawFallingFood() {
 
 function drawHamster() {
   if (!hamster || !hamster.alive) return;
+  const a = stableAppearanceFor(hamster);
   const wheelPhase = hamster.activity === ACTIVITIES.RUNNING ? hamster.wheelPhase : null;
   const inWheel = wheelPhase === 'run';
   const x = inWheel ? HABITAT.wheelCenterX : Math.floor(clampFloorX(hamster.posX));
@@ -747,7 +775,7 @@ function drawHamster() {
   // Hiding - peek from hideout
   if (hamster.activity === ACTIVITIES.HIDING && hamster.posX < 50) {
     const peekX = 52;
-    ellipse(peekX, groundY - r * 0.4, r * 0.4, r * 0.5, C.hamOrange);
+    ellipse(peekX, groundY - r * 0.4, r * 0.4, r * 0.5, a.coat);
     // One eye peeking
     ellipse(peekX + 3, groundY - r * 0.5, 2, 2.5, C.hamEye);
     px(peekX + 3, groundY - r * 0.55, 1, 1, '#fff');
@@ -759,8 +787,8 @@ function drawHamster() {
   // Sleeping - curled ball
   if (hamster.activity === ACTIVITIES.SLEEPING && Math.abs(hamster.posX - HABITAT.hideoutX) < 6) {
     const breathe = Math.sin(animFrame * 0.06) * 1.5;
-    ellipse(x, groundY - r * 0.4, r * 1.1 + breathe, r * 0.6, C.hamOrange);
-    ellipse(x, groundY - r * 0.3, r * 0.7, r * 0.35, C.hamBelly);
+    ellipse(x, groundY - r * 0.4, r * 1.1 + breathe, r * 0.6, a.coat);
+    ellipse(x, groundY - r * 0.3, r * 0.7, r * 0.35, a.belly);
     // Closed eyes (curved lines)
     ctx.strokeStyle = C.hamEye;
     ctx.lineWidth = 1.5;
@@ -785,7 +813,7 @@ function drawHamster() {
   }
 
   if (hamster.activity === ACTIVITIES.DRINKING && Math.abs(hamster.posX - HABITAT.waterX) < 7) {
-    drawDrinkingPose(HABITAT.waterX, r);
+    drawDrinkingPose(HABITAT.waterX, r, a);
     return;
   }
 
@@ -794,7 +822,7 @@ function drawHamster() {
   const floorWalking = !inWheel && (!wheelPhase || wheelPhase === 'approach') &&
     Math.abs(hamster.posX - hamster.targetX) > 2;
   if (floorWalking) {
-    drawWalkingPose(x, groundY, r, f);
+    drawWalkingPose(x, groundY, r, f, a);
     return;
   }
 
@@ -839,23 +867,29 @@ function drawHamster() {
   }
 
   // TAIL (behind body)
-  ellipse(x - f * r * 1.08, bodyY + r * 0.08, 4, 3, C.hamGold);
+  ellipse(x - f * r * 1.08, bodyY + r * 0.08, 4, 3, a.light);
 
   // BODY - round and chunky
-  ellipse(x, bodyY, r * 1.18, r * 0.68, '#b8662c');
-  ellipse(x - f * r * 0.44, bodyY - r * 0.05, r * 0.6, r * 0.48, C.hamGold);
-  px(x - f * 8, bodyY - 7, 3, 2, '#d4873e');
-  px(x - f * 11, bodyY + 2, 2, 3, '#88461f');
-  px(x + f * 9, bodyY + 8, 2, 2, '#d58a45');
+  ellipse(x, bodyY, r * 1.18, r * 0.68, a.coat);
+  ellipse(x - f * r * 0.44, bodyY - r * 0.05, r * 0.6, r * 0.48, a.light);
+  px(x - f * 8, bodyY - 7, 3, 2, a.light);
+  px(x - f * 11, bodyY + 2, 2, 3, a.dark);
+  px(x + f * 9, bodyY + 8, 2, 2, a.light);
   
-  // Body dark edge (top stripe)
-  ctx.fillStyle = C.hamDarkStripe;
-  ctx.beginPath();
-  ctx.ellipse(x - f * 2, bodyY - r * 0.32, r * 0.62, r * 0.14, 0, 0, Math.PI * 2);
-  ctx.fill();
+  if (a.pattern === 'stripe' || a.pattern === 'sable') {
+    ctx.fillStyle = a.dark; ctx.beginPath();
+    ctx.ellipse(x - f * 2, bodyY - r * 0.32, r * 0.62, r * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (a.pattern === 'band') {
+    ellipse(x - f * r * .08, bodyY, r * .25, r * .64, a.belly);
+  } else if (a.pattern === 'patches') {
+    ellipse(x - f * r * .3, bodyY - 4, r * .28, r * .22, a.dark);
+    ellipse(x + f * r * .2, bodyY + 3, r * .22, r * .18, a.light);
+  } else if (a.pattern === 'hood') {
+    ellipse(x + f * r * .48, bodyY - 1, r * .45, r * .58, a.dark);
+  }
 
   // BELLY - cream white
-  ellipse(x + f * r * .2, bodyY + r * 0.26, r * 0.72, r * 0.32, '#f5dfbd');
+  ellipse(x + f * r * .2, bodyY + r * 0.26, r * 0.72, r * 0.32, a.belly);
 
   // HEAD (slightly forward)
   const headX = x + f * r * 0.76;
@@ -863,33 +897,31 @@ function drawHamster() {
   let headY = bodyY - r * 0.12;
   if (engagedEating) headY += 4 + Math.sin(animFrame * .55) * 1.5;
   const headR = r * 0.58;
-  ellipse(headX, headY, headR * 1.08, headR * 0.98, '#cc7934');
+  ellipse(headX, headY, headR * 1.08, headR * 0.98, a.coat);
   px(headX - 7, headY - 7, 3, 2, '#e09249');
   px(headX + 6, headY + 7, 2, 2, '#9f5126');
   
-  // Head stripe (brown marking on top)
-  ctx.fillStyle = C.hamDarkStripe;
-  ctx.beginPath();
-  ctx.ellipse(headX, headY - headR * 0.5, headR * 0.3, headR * 0.3, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Stripe extends down
-  px(headX - 2, headY - headR * 0.6, 4, 4, C.hamDarkStripe);
+  if (a.pattern === 'stripe' || a.pattern === 'sable' || a.pattern === 'hood') {
+    ctx.fillStyle = a.dark; ctx.beginPath();
+    ctx.ellipse(headX, headY - headR * 0.5, headR * 0.3, headR * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+    px(headX - 2, headY - headR * 0.6, 4, 4, a.dark);
+  }
 
   // EARS (round, pink inside)
   const earY = headY - headR * 0.6;
   // Left ear
-  ellipse(headX - headR * 0.6, earY, 5, 6, C.hamOrange);
+  ellipse(headX - headR * 0.6, earY, 5, 6, a.coat);
   ellipse(headX - headR * 0.6, earY, 3, 4, C.hamPink);
   ellipse(headX - headR * 0.6, earY, 1.5, 2.5, C.hamPinkDark);
   // Right ear
-  ellipse(headX + headR * 0.6, earY, 5, 6, C.hamOrange);
+  ellipse(headX + headR * 0.6, earY, 5, 6, a.coat);
   ellipse(headX + headR * 0.6, earY, 3, 4, C.hamPink);
   ellipse(headX + headR * 0.6, earY, 1.5, 2.5, C.hamPinkDark);
 
   // CHEEK POUCHES (puffy)
   const cheekPuff = hamster.activity === ACTIVITIES.EATING ? 1.3 : 1;
-  ellipse(headX - headR * 0.55, headY + 2, 5 * cheekPuff, 4 * cheekPuff, C.hamCheek);
-  ellipse(headX + headR * 0.55, headY + 2, 5 * cheekPuff, 4 * cheekPuff, C.hamCheek);
+  ellipse(headX - headR * 0.55, headY + 2, 5 * cheekPuff, 4 * cheekPuff, a.cheek);
+  ellipse(headX + headR * 0.55, headY + 2, 5 * cheekPuff, 4 * cheekPuff, a.cheek);
 
   // EYES - large, expressive with colored iris
   const eyeSpacing = 5;
@@ -908,11 +940,11 @@ function drawHamster() {
   }
 
   // Projecting cream muzzle gives the face a recognizable hamster silhouette.
-  ellipse(headX + f * headR * 0.38, headY + headR * 0.28, 5, 4, C.hamBelly);
+  ellipse(headX + f * headR * 0.38, headY + headR * 0.28, 5, 4, a.belly);
   ellipse(headX + f * headR * 0.65, headY + headR * 0.28, 2.2, 1.8, C.hamNose);
   
   // MOUTH - tiny smile
-  ctx.strokeStyle = C.hamDarkStripe;
+  ctx.strokeStyle = a.dark;
   ctx.lineWidth = 0.8;
   ctx.beginPath();
   ctx.arc(headX + f * headR * 0.48, headY + headR * 0.42, 2, 0.2, Math.PI - 0.2);
@@ -1002,8 +1034,9 @@ function drawHamster() {
   }
 }
 
-function drawWalkingPose(x, groundY, r, f) {
-  const phase = animFrame * .34;
+function drawWalkingPose(x, groundY, r, f, a) {
+  // Phase advances from actual distance travelled, keeping footsteps synchronized.
+  const phase = walkPhase;
   const bodyY = groundY - r * .9 + Math.abs(Math.sin(phase * 2)) * .45;
   const hipY = bodyY + r * .38;
   const footY = groundY - 1;
@@ -1021,28 +1054,42 @@ function drawWalkingPose(x, groundY, r, f) {
     const toeY = footY - lift;
     ctx.strokeStyle = color; ctx.lineWidth = far ? 2.3 : 3;
     ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(kneeX, kneeY); ctx.lineTo(toeX, toeY); ctx.stroke();
-    ellipse(toeX + f * 1.5, toeY, far ? 2.8 : 3.5, far ? 1.5 : 1.9, color);
+    // Long axis and toe pixels always face the direction of travel.
+    ellipse(toeX + f * 2, toeY, far ? 3.2 : 4, far ? 1.4 : 1.8, color);
+    px(toeX + f * 4.6 - (f < 0 ? 1 : 0), toeY - 1, 1, 1, C.hamPinkDark);
+    px(toeX + f * 5.5 - (f < 0 ? 1 : 0), toeY + 1, 1, 1, C.hamPinkDark);
   }
 
-  // Far diagonal pair.
+  // Four-beat walk: each foot enters swing one quarter-cycle after the last.
   leg(rearHip + f * 3, phase + Math.PI, '#d2a178', true);
-  leg(frontHip - f * 3, phase, '#d2a178', true);
+  leg(frontHip - f * 3, phase + Math.PI * 1.5, '#d2a178', true);
 
   // Compact furred torso with clear daylight between belly and bedding.
-  ellipse(x, bodyY, r * .92, r * .57, '#b8662c');
-  ellipse(x - f * r * .3, bodyY - 1, r * .48, r * .42, C.hamGold);
-  ellipse(x + f * r * .18, bodyY + r * .25, r * .5, r * .22, '#f5dfbd');
-  ellipse(x - f * r * .88, bodyY + 1, 3.5, 2.8, C.hamGold);
-  ctx.fillStyle = C.hamDarkStripe; ctx.beginPath();
-  ctx.ellipse(x - f * 2, bodyY - r * .3, r * .45, r * .1, 0, 0, Math.PI * 2); ctx.fill();
+  ellipse(x, bodyY, r * .92, r * .57, a.coat);
+  ellipse(x - f * r * .3, bodyY - 1, r * .48, r * .42, a.light);
+  ellipse(x + f * r * .18, bodyY + r * .25, r * .5, r * .22, a.belly);
+  ellipse(x - f * r * .88, bodyY + 1, 3.5, 2.8, a.light);
+  if (a.pattern === 'stripe' || a.pattern === 'sable') {
+    ctx.fillStyle = a.dark; ctx.beginPath();
+    ctx.ellipse(x - f * 2, bodyY - r * .3, r * .45, r * .1, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (a.pattern === 'band') {
+    ellipse(x - f * r * .08, bodyY, r * .22, r * .55, a.belly);
+  } else if (a.pattern === 'patches') {
+    ellipse(x - f * r * .28, bodyY - 3, r * .25, r * .22, a.dark);
+    ellipse(x + f * r * .2, bodyY + 2, r * .2, r * .18, a.light);
+  } else if (a.pattern === 'hood') {
+    ellipse(x + f * r * .48, bodyY - 1, r * .38, r * .48, a.dark);
+  } else if (a.pattern === 'bib') {
+    ellipse(x + f * r * .38, bodyY + r * .22, r * .3, r * .28, a.belly);
+  }
 
   // Side-profile head points in the direction of travel.
   const headX = x + f * r * .72, headY = bodyY - r * .12;
   const headR = r * .48;
-  ellipse(headX, headY, headR, headR * .9, '#cc7934');
-  ellipse(headX - f * 2, headY - headR * .75, 4.5, 5.2, C.hamOrange);
+  ellipse(headX, headY, headR, headR * .9, a.pattern === 'hood' ? a.dark : a.coat);
+  ellipse(headX - f * 2, headY - headR * .75, 4.5, 5.2, a.coat);
   ellipse(headX - f * 2, headY - headR * .75, 2.5, 3.2, C.hamPink);
-  ellipse(headX + f * headR * .58, headY + 2, 5, 4, C.hamBelly);
+  ellipse(headX + f * headR * .58, headY + 2, 5, 4, a.belly);
   ellipse(headX + f * headR * .93, headY + 2, 2, 1.7, C.hamNose);
   ellipse(headX + f * 2, headY - 2, 2.5, 3, C.hamEye);
   px(headX + f * 2, headY - 4, 1, 1, '#fff7e5');
@@ -1050,21 +1097,21 @@ function drawWalkingPose(x, groundY, r, f) {
   ctx.moveTo(headX + f * 7, headY + 3); ctx.lineTo(headX + f * 17, headY);
   ctx.moveTo(headX + f * 7, headY + 5); ctx.lineTo(headX + f * 17, headY + 6); ctx.stroke();
 
-  // Near diagonal pair drawn last so the stepping order remains readable.
+  // Near pair drawn last so all four alternating legs remain readable.
   leg(rearHip, phase, C.hamPaw);
-  leg(frontHip, phase + Math.PI, C.hamPaw);
+  leg(frontHip, phase + Math.PI * .5, C.hamPaw);
 }
 
-function drawDrinkingPose(x, r) {
+function drawDrinkingPose(x, r, a) {
   const sip = Math.sin(animFrame * 0.34) * 1.2;
   const bodyX = x - 12, bodyY = 207;
   ctx.globalAlpha = .14; ellipse(bodyX, 220, 19, 3, '#20170f'); ctx.globalAlpha = 1;
   // Hindquarters stay low while the spine stretches toward the nozzle.
-  ellipse(bodyX - 2, bodyY, r * .9, r * .54, '#a95729');
-  ellipse(bodyX - 5, bodyY + 4, r * .55, r * .3, '#f2d7ad');
-  ctx.fillStyle = '#b9662e'; ctx.beginPath();
+  ellipse(bodyX - 2, bodyY, r * .9, r * .54, a.coat);
+  ellipse(bodyX - 5, bodyY + 4, r * .55, r * .3, a.belly);
+  ctx.fillStyle = a.light; ctx.beginPath();
   ctx.moveTo(bodyX + 5, bodyY - 6); ctx.lineTo(x - 4, 179 + sip); ctx.lineTo(x + 3, 185 + sip); ctx.lineTo(bodyX + 12, bodyY + 5); ctx.closePath(); ctx.fill();
-  ellipse(x - 1, 177 + sip, r * .55, r * .5, '#c87332');
+  ellipse(x - 1, 177 + sip, r * .55, r * .5, a.coat);
   ellipse(x - 8, 171 + sip, 4, 5, '#9d4e29'); ellipse(x - 8, 171 + sip, 2, 3, '#df8b84');
   ellipse(x + 5, 171 + sip, 4, 5, '#9d4e29'); ellipse(x + 5, 171 + sip, 2, 3, '#df8b84');
   ellipse(x - 4, 177 + sip, 2.3, 3, '#241812'); ellipse(x + 3, 177 + sip, 2.3, 3, '#241812');
@@ -1436,11 +1483,25 @@ function render() {
   animFrame++;
 }
 
+function updateLiveMovement(deltaMs) {
+  const distance = hamster.targetX - hamster.posX;
+  if (Math.abs(distance) <= 2) return;
+  const direction = Math.sign(distance);
+  const climbing = hamster.activity === ACTIVITIES.RUNNING &&
+    (hamster.wheelPhase === 'climb' || hamster.wheelPhase === 'exit');
+  const speed = climbing ? 13 : 9; // pixels per second
+  const step = Math.min(Math.abs(distance), speed * Math.min(deltaMs, 50) / 1000);
+  hamster.posX = clampFloorX(hamster.posX + direction * step);
+  hamster.facing = direction;
+  if (!climbing) walkPhase = (walkPhase + step * .58) % (Math.PI * 2);
+}
+
 function gameLoop() {
   const now = Date.now();
   const delta = now - lastFrameTime;
   lastFrameTime = now;
   if (state === STATES.LIVING && hamster && hamster.alive) {
+    if (!PREVIEW_FREEZE) updateLiveMovement(delta);
     // Only a visibly running hamster drives the wheel; frame timing keeps it fluid.
     if (hamster.activity === ACTIVITIES.RUNNING && hamster.wheelPhase === 'run') {
       wheelAngle = (wheelAngle + delta * 0.34) % 360;
@@ -1547,7 +1608,13 @@ if (typeof PluginMessageHandler === 'undefined') {
 async function init() {
   await loadGame();
   if (new URLSearchParams(window.location.search).has('preview')) {
+    const previewParams = new URLSearchParams(window.location.search);
+    if (previewParams.has('phase')) walkPhase = Number(previewParams.get('phase')) || 0;
     hamster = createHamster('WAFFLE');
+    if (previewParams.has('look')) {
+      const lookIndex = Math.max(0, Math.min(HAMSTER_LOOKS.length - 1, Number(previewParams.get('look')) || 0));
+      hamster.appearance = { ...HAMSTER_LOOKS[lookIndex], lookIndex };
+    }
     hamster.lifeStage = LIFE_STAGES.ADULT;
     hamster.metrics.ageTicks = DAY_TICKS * 120;
     hamster.metrics.bodyMass = 38;
@@ -1560,7 +1627,7 @@ async function init() {
       { type: 5, x: 181, y: 207, remaining: 3, maxAmount: 3 },
       { type: 2, x: 181, y: 207, remaining: 3, maxAmount: 3 },
     ];
-    const activityPreview = new URLSearchParams(window.location.search).get('activity');
+    const activityPreview = previewParams.get('activity');
     if (activityPreview === 'walking') { hamster.activity = ACTIVITIES.IDLE; hamster.posX = 92; hamster.targetX = 172; }
     if (activityPreview === 'eating') { hamster.activity = ACTIVITIES.EATING; hamster.posX = 181; hamster.targetX = 181; }
     if (activityPreview === 'running') { hamster.activity = ACTIVITIES.RUNNING; hamster.wheelPhase = 'run'; hamster.activityTimer = 999; hamster.posX = HABITAT.wheelCenterX; hamster.targetX = HABITAT.wheelCenterX; }
