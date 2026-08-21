@@ -8,13 +8,13 @@ const PX = 2; // pixel grid size for retro feel
 const STATES = { ADOPT: 0, NAMING: 1, LIVING: 2, DEATH: 3, MEMORIAL: 4 };
 
 const FOOD_TYPES = [
-  { name: 'Pellets',   nutrition: 8, hydration: 1, fiber: 6, sugar: 1, spriteW: 5, spriteH: 4 },
-  { name: 'Millet',    nutrition: 5, hydration: 0, fiber: 4, sugar: 2, spriteW: 4, spriteH: 3 },
-  { name: 'Sunflower', nutrition: 7, hydration: 0, fiber: 2, sugar: 1, spriteW: 4, spriteH: 6 },
-  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12 },
-  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12 },
-  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6 },
-  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10 },
+  { name: 'Pellets',   nutrition: 8, hydration: 1, fiber: 6, sugar: 1, spriteW: 5, spriteH: 4, worldScale: 1.0 },
+  { name: 'Millet',    nutrition: 5, hydration: 0, fiber: 4, sugar: 2, spriteW: 4, spriteH: 3, worldScale: 0.85 },
+  { name: 'Sunflower', nutrition: 7, hydration: 0, fiber: 2, sugar: 1, spriteW: 4, spriteH: 6, worldScale: 0.72 },
+  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12, worldScale: 1.65 },
+  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12, worldScale: 1.25 },
+  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.5 },
+  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 1.28 },
 ];
 
 const LIFE_STAGES = { JUVENILE: 0, ADULT: 1, SENIOR: 2 };
@@ -28,10 +28,10 @@ const C = {
   bgWallDark: '#9b7954',
   floor: '#c49660',
   floorLight: '#dab888',
-  bedding: '#f0d898',
-  beddingDark: '#d4b870',
-  beddingLight: '#fff0c8',
-  beddingAccent: '#e8c470',
+  bedding: '#d6b277',
+  beddingDark: '#ad824c',
+  beddingLight: '#efd39c',
+  beddingAccent: '#c69857',
   teal: '#668f7d',
   tealLight: '#91b5a3',
   tealDark: '#3f6557',
@@ -453,7 +453,7 @@ function drawHabitat() {
   roundRect(7, 7, W - 14, 239, 6, '#b99a70');
   roundRect(10, 10, W - 20, 233, 3, '#d8bb8e');
   const wall = ctx.createLinearGradient(0, 12, 0, 205);
-  wall.addColorStop(0, '#e4cba3'); wall.addColorStop(1, '#c6a476');
+  wall.addColorStop(0, '#d8bb8e'); wall.addColorStop(.55, '#ceb084'); wall.addColorStop(1, '#b99368');
   ctx.fillStyle = wall; ctx.fillRect(12, 12, W - 24, 194);
   // Handmade back-wall seams and scuffs.
   ctx.strokeStyle = 'rgba(104,75,45,.13)'; ctx.lineWidth = 1;
@@ -462,16 +462,24 @@ function drawHabitat() {
     for (let x = 13; x < 228; x += 8) ctx.lineTo(x, y + Math.sin(x * .13 + y) * 1.4);
     ctx.stroke();
   }
+  // Stable stipple and worn patches create illustrated pixel texture without shimmer.
+  for (let i = 0; i < 55; i++) {
+    const x = 14 + (i * 47) % 212, y = 16 + (i * 31) % 177;
+    ctx.globalAlpha = i % 3 === 0 ? .10 : .055;
+    px(x, y, 1 + i % 3, 1, i % 2 ? '#fff0cf' : '#795d41');
+  }
+  ctx.globalAlpha = 1;
   drawMemorialMarks();
   // Deep, uneven bedding.
-  ctx.fillStyle = '#d1ae72'; ctx.fillRect(10, 198, W - 20, 44);
-  ctx.fillStyle = '#ead09b'; ctx.beginPath(); ctx.moveTo(10, 242);
+  ctx.fillStyle = '#a77c47'; ctx.fillRect(10, 198, W - 20, 44);
+  ctx.fillStyle = '#d4ae70'; ctx.beginPath(); ctx.moveTo(10, 242);
   for (let x = 10; x <= 230; x += 2) ctx.lineTo(x, 198 + Math.sin(x * .31) * 3 + Math.sin(x * .09) * 2);
   ctx.lineTo(230, 242); ctx.closePath(); ctx.fill();
-  for (let i = 0; i < 82; i++) {
+  for (let i = 0; i < 118; i++) {
     const x = 12 + (i * 37) % 216, y = 201 + (i * 19) % 38;
-    const col = ['#f3dca9','#c39a5d','#dfbd7c','#fff0c5'][i % 4];
-    px(x, y, 2 + i % 4, 1 + i % 2, col);
+    const col = ['#edcf94','#9f7442','#c99653','#f5ddb0','#b4864d'][i % 5];
+    px(x, y, 2 + i % 4, 1 + (i % 3 === 0), col);
+    if (i % 9 === 0) px(x + 2, y - 1, 1, 1, '#755333');
   }
   drawHideout();
   drawWheel();
@@ -509,6 +517,8 @@ function drawHideout() {
   ctx.strokeStyle = 'rgba(30,45,37,.32)';
   for (let yy = y + 25; yy < y + 55; yy += 7) { ctx.beginPath(); ctx.moveTo(x + 3, yy); ctx.lineTo(x + 49, yy); ctx.stroke(); }
   px(x + 7, y + 22, 8, 2, '#9eb09a'); px(x + 44, y + 29, 3, 9, '#416657');
+  px(x + 2, y + 34, 3, 2, '#315449'); px(x + 34, y + 19, 8, 2, '#87a18d');
+  px(x + 18, y + 6, 5, 2, '#436b5c'); px(x + 10, y + 52, 3, 3, '#668b77');
 }
 
 function drawWheel() {
@@ -519,6 +529,8 @@ function drawWheel() {
   ctx.strokeStyle = '#294a41'; ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);ctx.stroke();
   ctx.strokeStyle = '#709481'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx,cy,r-6,0,Math.PI*2);ctx.stroke();
   ctx.strokeStyle = '#91a78b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx,cy,r-12,0,Math.PI*2);ctx.stroke();
+  ctx.strokeStyle = 'rgba(221,219,170,.28)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx-1,cy-1,r-4,3.5,5.55);ctx.stroke();
+  ctx.strokeStyle = 'rgba(24,52,46,.32)'; ctx.beginPath(); ctx.arc(cx+1,cy+2,r-3,.25,2.35);ctx.stroke();
   
   // Rungs/bars across the running surface (rotating)
   for (let i = 0; i < 10; i++) {
@@ -566,6 +578,7 @@ function drawWaterBottle() {
   
   // Bottle body (large)
   roundRect(bx, by, 24, 65, 8, C.bottle);
+  ctx.strokeStyle = '#365f59'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(bx, by, 24, 65, 8); ctx.stroke();
   
   // Water fill
   const waterLevel = 43;
@@ -573,6 +586,7 @@ function drawWaterBottle() {
   
   // Water highlight/shine
   px(bx + 5, by + 20, 3, 25, C.waterLight);
+  px(bx + 18, by + 42, 2, 15, C.waterDark);
   px(bx + 4, by + 18, 2, 4, 'rgba(255,255,255,0.5)');
   
   // Bottle cap (red)
@@ -589,17 +603,17 @@ function drawWaterBottle() {
   }
   
   // Metal nozzle/spout
-  px(bx + 9, by + 65, 6, 16, '#a0a0a0');
-  px(bx + 10, by + 65, 4, 14, '#b8b8b8');
-  px(bx + 11, by + 79, 3, 4, '#808080');
+  px(bx + 9, by + 65, 6, 48, '#777a72');
+  px(bx + 10, by + 65, 3, 46, '#c1bca9');
+  px(bx + 11, by + 108, 3, 5, '#696b65');
   
   // Ball bearing
-  ellipse(bx + 12, by + 82, 2, 2, '#d0d0d0');
+  ellipse(bx + 12, by + 113, 2, 2, '#d0d0d0');
   
   // Drip animation
   const dripPhase = animFrame % 180;
   if (dripPhase < 30) {
-    const dropY = by + 84 + dripPhase * 0.8;
+    const dropY = by + 115 + dripPhase * 0.35;
     ellipse(bx + 12, dropY, 1.5, 2, C.water);
   }
 }
@@ -608,7 +622,8 @@ function drawGroundFood() {
   // Every dropped item remains visible. Older pieces settle lower, producing a pile.
   for (let i = 0; i < foodOnGround.length; i++) {
     const food = foodOnGround[i];
-    const scale = 0.75 + Math.min(0.35, food.remaining / food.maxAmount * 0.35);
+    if (hamster?.activity === ACTIVITIES.EATING && i === 0 && Math.abs(hamster.posX - food.x) < 9) continue;
+    const scale = FOOD_TYPES[food.type].worldScale * (0.8 + food.remaining / food.maxAmount * 0.2);
     drawFoodSprite(food.type, food.x, food.y - Math.floor(i / 7) * 2, scale);
   }
 }
@@ -639,7 +654,7 @@ function drawFallingFood() {
     ctx.translate(f.x, f.y);
     ctx.rotate(Math.sin(f.rotation) * 0.2);
     ctx.translate(-f.x, -f.y);
-    drawFoodSprite(f.type, f.x, f.y, 1);
+    drawFoodSprite(f.type, f.x, f.y, FOOD_TYPES[f.type].worldScale);
     ctx.restore();
   }
 }
@@ -702,6 +717,11 @@ function drawHamster() {
     return;
   }
 
+  if (hamster.activity === ACTIVITIES.DRINKING && Math.abs(hamster.posX - 210) < 9) {
+    drawDrinkingPose(210, r);
+    return;
+  }
+
   // Position adjustments for running
   let dy = Math.sin(animFrame * 0.055) * 0.7;
   if (Math.abs(hamster.posX - hamster.targetX) > 2 && hamster.activity !== ACTIVITIES.RUNNING) {
@@ -724,6 +744,9 @@ function drawHamster() {
   // BODY - round and chunky
   ellipse(x, bodyY, r * 1.04, r * 1.08, '#b8662c');
   ellipse(x - f * r * 0.42, bodyY - r * 0.08, r * 0.48, r * 0.68, C.hamGold);
+  px(x - f * 8, bodyY - 7, 3, 2, '#d4873e');
+  px(x - f * 11, bodyY + 2, 2, 3, '#88461f');
+  px(x + f * 9, bodyY + 8, 2, 2, '#d58a45');
   
   // Body dark edge (top stripe)
   ctx.fillStyle = C.hamDarkStripe;
@@ -739,6 +762,8 @@ function drawHamster() {
   const headY = bodyY - r * 0.6;
   const headR = r * 0.7;
   ellipse(headX, headY, headR * 1.08, headR * 0.98, '#cc7934');
+  px(headX - 7, headY - 7, 3, 2, '#e09249');
+  px(headX + 6, headY + 7, 2, 2, '#9f5126');
   
   // Head stripe (brown marking on top)
   ctx.fillStyle = C.hamDarkStripe;
@@ -833,7 +858,13 @@ function drawHamster() {
   if (hamster.activity === ACTIVITIES.EATING && foodOnGround.length > 0) {
     // Holding food near mouth
     const bobble = Math.sin(animFrame * 0.6) * 1;
-    drawFoodSprite(foodOnGround[0].type, headX + f * 5, headY + headR * 0.5 + bobble, 0.5);
+    const biteType = foodOnGround[0].type;
+    drawFoodSprite(biteType, headX + f * 6, headY + headR * 0.52 + bobble,
+      Math.min(0.75, FOOD_TYPES[biteType].worldScale * 0.48));
+    if (animFrame % 18 < 3) {
+      px(headX + f * 11, headY + 8, 1, 1, '#7f5b31');
+      px(headX + f * 13, headY + 11, 1, 1, '#b7894c');
+    }
   }
   
   if (hamster.activity === ACTIVITIES.GROOMING) {
@@ -856,6 +887,24 @@ function drawHamster() {
     ellipse(x + 4 + Math.sin(legPhase + 2) * 3, legY, 2, 2, C.hamPaw);
     ctx.globalAlpha = 1;
   }
+}
+
+function drawDrinkingPose(x, r) {
+  const sip = Math.sin(animFrame * 0.34) * 1.2;
+  const bodyY = 199;
+  ctx.globalAlpha = .14; ellipse(x, 220, 13, 3, '#20170f'); ctx.globalAlpha = 1;
+  ellipse(x, bodyY, r * .72, r, '#a95729');
+  ellipse(x, bodyY + 5, r * .48, r * .68, '#f2d7ad');
+  ellipse(x, 176 + sip, r * .62, r * .56, '#c87332');
+  ellipse(x - 8, 169 + sip, 4, 5, '#9d4e29'); ellipse(x - 8, 169 + sip, 2, 3, '#df8b84');
+  ellipse(x + 8, 169 + sip, 4, 5, '#9d4e29'); ellipse(x + 8, 169 + sip, 2, 3, '#df8b84');
+  ellipse(x - 5, 175 + sip, 2.3, 3, '#241812'); ellipse(x + 5, 175 + sip, 2.3, 3, '#241812');
+  px(x - 5, 173 + sip, 1, 1, '#fff4dd'); px(x + 5, 173 + sip, 1, 1, '#fff4dd');
+  ellipse(x, 168 + sip, 2, 1.5, '#c56f70');
+  ellipse(x - 7, 184, 3, 4, '#efd0a6'); ellipse(x + 7, 184, 3, 4, '#efd0a6');
+  ctx.strokeStyle = '#67412c'; ctx.lineWidth = .7; ctx.beginPath();
+  ctx.moveTo(x - 5, 179); ctx.lineTo(x - 14, 176); ctx.moveTo(x + 5, 179); ctx.lineTo(x + 14, 176); ctx.stroke();
+  if (animFrame % 22 < 8) ellipse(x + 1, 164, 1, 2, '#8ccbd0');
 }
 
 // ============================================================
@@ -1326,7 +1375,7 @@ async function init() {
   if (new URLSearchParams(window.location.search).has('preview')) {
     hamster = createHamster('WAFFLE');
     hamster.lifeStage = LIFE_STAGES.ADULT;
-    hamster.metrics.ageTicks = DAY_TICKS * 42;
+    hamster.metrics.ageTicks = DAY_TICKS * 120;
     hamster.metrics.bodyMass = 38;
     hamster.activity = ACTIVITIES.IDLE;
     hamster.activityTimer = 999;
@@ -1337,6 +1386,11 @@ async function init() {
       { type: 5, x: 181, y: 207, remaining: 3, maxAmount: 3 },
       { type: 2, x: 181, y: 207, remaining: 3, maxAmount: 3 },
     ];
+    const activityPreview = new URLSearchParams(window.location.search).get('activity');
+    if (activityPreview === 'eating') { hamster.activity = ACTIVITIES.EATING; hamster.posX = 181; hamster.targetX = 181; }
+    if (activityPreview === 'running') { hamster.activity = ACTIVITIES.RUNNING; hamster.posX = 115; hamster.targetX = 115; }
+    if (activityPreview === 'sleeping') { hamster.activity = ACTIVITIES.SLEEPING; hamster.posX = 36; hamster.targetX = 36; }
+    if (activityPreview === 'drinking') { hamster.activity = ACTIVITIES.DRINKING; hamster.posX = 210; hamster.targetX = 210; }
     state = STATES.LIVING;
   }
   lastFrameTime = Date.now();
