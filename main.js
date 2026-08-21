@@ -11,13 +11,13 @@ const PREVIEW_FREEZE = new URLSearchParams(window.location.search).has('freeze')
 const STATES = { ADOPT: 0, NAMING: 1, LIVING: 2, DEATH: 3, MEMORIAL: 4 };
 
 const FOOD_TYPES = [
-  { name: 'Pellets',   nutrition: 8, hydration: 1, fiber: 6, sugar: 1, spriteW: 5, spriteH: 4, worldScale: 1.0 },
-  { name: 'Millet',    nutrition: 5, hydration: 0, fiber: 4, sugar: 2, spriteW: 4, spriteH: 3, worldScale: 0.85 },
-  { name: 'Sunflower', nutrition: 7, hydration: 0, fiber: 2, sugar: 1, spriteW: 4, spriteH: 6, worldScale: 0.72 },
-  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12, worldScale: 2.35 },
-  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12, worldScale: 1.85 },
-  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.65 },
-  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 1.9 },
+  { name: 'Pellets',   nutrition: 8, hydration: 1, fiber: 6, sugar: 1, spriteW: 5, spriteH: 4, worldScale: 1.0, decayMinutes: 4320 },
+  { name: 'Millet',    nutrition: 5, hydration: 0, fiber: 4, sugar: 2, spriteW: 4, spriteH: 3, worldScale: 0.85, decayMinutes: 5040 },
+  { name: 'Sunflower', nutrition: 7, hydration: 0, fiber: 2, sugar: 1, spriteW: 4, spriteH: 6, worldScale: 0.72, decayMinutes: 4320 },
+  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12, worldScale: 2.35, decayMinutes: 2160 },
+  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12, worldScale: 1.85, decayMinutes: 2880 },
+  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.65, decayMinutes: 2160 },
+  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 1.9, decayMinutes: 1440 },
 ];
 
 const LIFE_STAGES = { JUVENILE: 0, ADULT: 1, SENIOR: 2 };
@@ -160,7 +160,7 @@ async function loadGame() {
   if (data) {
     state = Object.values(STATES).includes(data.state) ? data.state : STATES.ADOPT;
     hamster = data.hamster;
-    foodOnGround = data.foodOnGround || data.foodQueue || [];
+    foodOnGround = (data.foodOnGround || data.foodQueue || []).map(food => ({ ageMinutes: 0, ...food }));
     memorial = data.memorial || { legends: { oldest: null, heaviest: null, longestRunner: null }, lastFive: [] };
     selectedFoodIndex = data.selectedFoodIndex || 0;
     lastTimestamp = data.lastTimestamp || Date.now();
@@ -245,8 +245,22 @@ function simulateTick(timeScaleMinutes = ACTIVE_MINUTES_PER_TICK, offline = fals
   hamster.metrics.hunger += 0.03 * hamster.traits.metabolism * timeScaleMinutes;
   hamster.metrics.thirst += 0.035 * timeScaleMinutes;
 
+  // Food ages in real-world minutes. Older pieces visibly dull before disappearing.
+  for (let i = foodOnGround.length - 1; i >= 0; i--) {
+    const food = foodOnGround[i];
+    food.ageMinutes = (food.ageMinutes || 0) + timeScaleMinutes;
+    if (food.ageMinutes >= FOOD_TYPES[food.type].decayMinutes) {
+      foodOnGround.splice(i, 1);
+      if (i === 0 && hamster.activity === ACTIVITIES.EATING) {
+        hamster.activity = ACTIVITIES.IDLE;
+        hamster.activityTimer = 4;
+        hamster.targetX = clampFloorX(hamster.posX);
+      }
+    }
+  }
+
   // FIFO eating: approach the oldest piece, settle, then visibly nibble it.
-  if (hamster.metrics.hunger > 40 && foodOnGround.length > 0 &&
+  if (hamster.metrics.hunger > 25 && foodOnGround.length > 0 &&
       hamster.activity !== ACTIVITIES.RUNNING && hamster.activity !== ACTIVITIES.DRINKING) {
     if (hamster.activity !== ACTIVITIES.EATING) {
       hamster.activity = ACTIVITIES.EATING;
@@ -354,7 +368,7 @@ function simulateTick(timeScaleMinutes = ACTIVE_MINUTES_PER_TICK, offline = fals
 function chooseNextActivity() {
   const r = Math.random();
   const wc = hamster.traits.wheelEnthusiasm * 0.3;
-  if (hamster.metrics.hunger > 40 && foodOnGround.length > 0) {
+  if (hamster.metrics.hunger > 25 && foodOnGround.length > 0) {
     hamster.activity = ACTIVITIES.EATING;
     hamster.activityTimer = 18;
     hamster.wheelPhase = null;
@@ -551,9 +565,13 @@ function drawHabitat() {
   ctx.fillStyle = '#d4ae70'; ctx.beginPath(); ctx.moveTo(10, 242);
   for (let x = 10; x <= 230; x += 2) ctx.lineTo(x, 198 + Math.sin(x * .31) * 3 + Math.sin(x * .09) * 2);
   ctx.lineTo(230, 242); ctx.closePath(); ctx.fill();
-  for (let i = 0; i < 118; i++) {
-    const x = 12 + (i * 37) % 216, y = 201 + (i * 19) % 38;
-    const col = ['#edcf94','#9f7442','#c99653','#f5ddb0','#b4864d'][i % 5];
+  // High-contrast top layer makes the paw contact plane readable at r1 scale.
+  ctx.strokeStyle = '#8b6338'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(11, 202);
+  for (let x = 11; x <= 229; x += 3) ctx.lineTo(x, 202 + Math.sin(x * .47) * 2);
+  ctx.stroke();
+  for (let i = 0; i < 190; i++) {
+    const x = 12 + (i * 37) % 216, y = 201 + (i * 17) % 39;
+    const col = ['#f5dca5','#8d6137','#c28d49','#fff0c5','#aa7440','#e4bd7d'][i % 6];
     px(x, y, 2 + i % 4, 1 + (i % 3 === 0), col);
     if (i % 9 === 0) px(x + 2, y - 1, 1, 1, '#755333');
   }
@@ -709,7 +727,15 @@ function drawGroundFood() {
     const food = foodOnGround[i];
     if (hamster?.activity === ACTIVITIES.EATING && i === 0 && Math.abs(hamster.posX - food.x) < 9) continue;
     const scale = FOOD_TYPES[food.type].worldScale * (0.8 + food.remaining / food.maxAmount * 0.2);
-    drawFoodSprite(food.type, food.x, food.y - Math.floor(i / 7) * 2, scale);
+    const y = food.y - Math.floor(i / 7) * 2;
+    const ageRatio = Math.min(1, (food.ageMinutes || 0) / FOOD_TYPES[food.type].decayMinutes);
+    ctx.globalAlpha = 1 - ageRatio * .32;
+    drawFoodSprite(food.type, food.x, y, scale);
+    ctx.globalAlpha = 1;
+    if (ageRatio > .68) {
+      px(food.x - 2, y - 1, 2, 1, '#6f7140');
+      if (scale > 1.4) px(food.x + 2, y + 2, 2, 2, '#8a7443');
+    }
   }
 }
 
@@ -730,7 +756,7 @@ function drawFallingFood() {
         f.vx *= 0.5;
         f.bounces++;
       } else {
-        foodOnGround.push({ type: f.type, x: f.x, y: groundY, remaining: 3, maxAmount: 3 });
+        foodOnGround.push({ type: f.type, x: f.x, y: groundY, remaining: 3, maxAmount: 3, ageMinutes: 0 });
         fallingFood.splice(i, 1);
         saveGame();
         continue;
@@ -1043,10 +1069,11 @@ function drawWalkingPose(x, groundY, r, f, a) {
   const rearHip = x - f * r * .48;
   const frontHip = x + f * r * .48;
 
-  ctx.globalAlpha = .12; ellipse(x, groundY + 2, r * .82, 2.5, '#20170f'); ctx.globalAlpha = 1;
+  ctx.globalAlpha = .22; ellipse(x, groundY + 1, r * .72, 2.2, '#4b321f'); ctx.globalAlpha = 1;
 
   function leg(hipX, legPhase, color, far = false) {
-    const reach = Math.cos(legPhase) * 4.2;
+    // Lifted paws swing rear-to-front; planted paws then push front-to-rear.
+    const reach = -Math.cos(legPhase) * 4.2;
     const lift = Math.max(0, Math.sin(legPhase)) * 2.8;
     const kneeX = hipX + f * reach * .25;
     const kneeY = hipY + 4 - lift * .35;
@@ -1100,6 +1127,9 @@ function drawWalkingPose(x, groundY, r, f, a) {
   // Near pair drawn last so all four alternating legs remain readable.
   leg(rearHip, phase, C.hamPaw);
   leg(frontHip, phase + Math.PI * .5, C.hamPaw);
+  // A few foreground chips overlap the contact line so planted paws feel embedded.
+  px(x - 13, groundY, 5, 1, '#8d6137'); px(x - 10, groundY - 1, 2, 1, '#f5dca5');
+  px(x + 8, groundY + 1, 6, 1, '#aa7440'); px(x + 11, groundY, 3, 1, '#fff0c5');
 }
 
 function drawDrinkingPose(x, r, a) {
@@ -1636,6 +1666,13 @@ async function init() {
     if (activityPreview === 'foodscale') {
       hamster.posX = 82; hamster.targetX = 82;
       foodOnGround = FOOD_TYPES.map((_, type) => ({ type, x: 145 + type * 9, y: 207, remaining: 3, maxAmount: 3 }));
+    }
+    if (activityPreview === 'decay') {
+      hamster.posX = 82; hamster.targetX = 82;
+      foodOnGround = FOOD_TYPES.map((food, type) => ({
+        type, x: 145 + type * 9, y: 207, remaining: 3, maxAmount: 3,
+        ageMinutes: food.decayMinutes * (.7 + type * .04),
+      }));
     }
     state = STATES.LIVING;
   }
