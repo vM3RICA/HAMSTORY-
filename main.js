@@ -123,6 +123,8 @@ let offlineMsgTimer = 0;
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+const hedgehogSprite = new Image();
+hedgehogSprite.src = './hedgehog-character.png';
 
 // ============================================================
 // STORAGE
@@ -828,7 +830,92 @@ function drawQuillBody(x, y, r, a) {
   ctx.lineCap = 'butt';
 }
 
+function drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase) {
+  const running = wheelPhase === 'run';
+  const walking = Math.abs(hedgehog.posX - hedgehog.targetX) > 2 || running;
+  const eating = hedgehog.activity === ACTIVITIES.EATING && foodOnGround[0] &&
+    Math.abs(hedgehog.posX - foodOnGround[0].x) < 9;
+  const sleeping = hedgehog.activity === ACTIVITIES.SLEEPING;
+  const drinking = hedgehog.activity === ACTIVITIES.DRINKING;
+  const phase = running ? animFrame * .82 : walkPhase;
+  const width = r * 2.32;
+  let height = width * 111 / 128;
+  let bob = walking ? Math.sin(phase * 2) * .22 : Math.sin(animFrame * .045) * .28;
+  let angle = 0;
+  let drawX = x;
+  let drawGround = groundY + bob;
+
+  if (sleeping) {
+    height *= .78;
+    angle = f * .08;
+    bob = Math.sin(animFrame * .045) * .2;
+    drawGround = groundY + bob;
+  } else if (drinking) {
+    angle = -f * .32;
+    drawX -= f * 7;
+    drawGround -= 5;
+  }
+
+  ctx.globalAlpha = .18;
+  ellipse(drawX, groundY + 1, width * .38, 2.4, '#342319');
+  ctx.globalAlpha = 1;
+
+  // Four tiny planted feet animate beneath the master artwork. The body sprite
+  // is cropped just above its painted feet while moving so the gait stays clear.
+  if (walking) {
+    const feet = [
+      { x: -.25, p: 0, far: false }, { x: .25, p: Math.PI / 2, far: false },
+      { x: -.2, p: Math.PI, far: true }, { x: .2, p: Math.PI * 1.5, far: true },
+    ];
+    for (const foot of feet) {
+      const cycle = ((phase + foot.p) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2);
+      const swing = cycle < .34;
+      const t = swing ? cycle / .34 : (cycle - .34) / .66;
+      const reach = swing ? -2.2 + t * 4.4 : 2.2 - t * 4.4;
+      const lift = swing ? Math.sin(t * Math.PI) * (running ? 3 : 1.8) : 0;
+      const footX = drawX + f * (width * foot.x + reach);
+      const footY = groundY - 1 - lift;
+      ellipse(footX + f * 1.5, footY, foot.far ? 2.2 : 2.7, foot.far ? 1.1 : 1.35,
+        foot.far ? '#a9755d' : '#d99b83');
+      px(footX + f * 3.1 - (f < 0 ? 1 : 0), footY, 1, 1, '#f0c0aa');
+    }
+  }
+
+  ctx.save();
+  ctx.translate(drawX, drawGround);
+  ctx.scale(f, 1);
+  ctx.rotate(angle * f);
+  const lookIndex = Number(a.lookIndex || 0);
+  const hue = [-4, 7, -10, 4, -7, 10][lookIndex] || 0;
+  ctx.filter = `hue-rotate(${hue}deg) saturate(${lookIndex === 2 ? .82 : 1})`;
+  if (walking) {
+    ctx.drawImage(hedgehogSprite, 0, 0, 128, 103, -width / 2, -height + 2, width, height * 103 / 111);
+  } else {
+    ctx.drawImage(hedgehogSprite, -width / 2, -height + 2, width, height);
+  }
+  ctx.restore();
+
+  const faceX = drawX + f * width * .3;
+  const eyeY = drawGround - height * .48;
+  if (sleeping) {
+    ctx.strokeStyle = '#3b281e'; ctx.lineWidth = 1.2; ctx.beginPath();
+    ctx.arc(faceX, eyeY + 2, 2.3, .15, Math.PI - .15); ctx.stroke();
+    ctx.font = 'bold 9px monospace'; ctx.fillStyle = C.teal; ctx.globalAlpha = .65;
+    ctx.fillText('z', drawX + width * .52, drawGround - height - 2); ctx.globalAlpha = 1;
+  }
+  if (drinking && animFrame % 22 < 8) ellipse(x, 163, 1, 2, '#8ccbd0');
+  if (eating) {
+    const biteType = foodOnGround[0].type;
+    drawFoodSprite(biteType, drawX + f * width * .48, drawGround - height * .2 + Math.sin(animFrame * .55),
+      Math.min(1.05, FOOD_TYPES[biteType].worldScale * .6));
+  }
+}
+
 function drawHedgehogCreature(x, groundY, r, f, a, wheelPhase) {
+  if (hedgehogSprite.complete && hedgehogSprite.naturalWidth) {
+    drawSpriteHedgehog(x, groundY, r, f, a, wheelPhase);
+    return;
+  }
   const inWheel = wheelPhase === 'run';
   const moving = Math.abs(hedgehog.posX - hedgehog.targetX) > 2;
   const eating = hedgehog.activity === ACTIVITIES.EATING && foodOnGround[0] &&
