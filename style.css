@@ -1,0 +1,37 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 240px;
+  height: 282px;
+  background-color: #d4a56a;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app {
+  width: 240px;
+  height: 282px;
+  position: relative;
+}
+
+#game {
+  display: block;
+  width: 240px;
+  height: 282px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+#ui-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 240px;
+  height: 282px;
+  pointer-events: none;
+}
