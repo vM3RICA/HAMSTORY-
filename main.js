@@ -11,13 +11,13 @@ const PREVIEW_FREEZE = new URLSearchParams(window.location.search).has('freeze')
 const STATES = { ADOPT: 0, NAMING: 1, LIVING: 2, DEATH: 3, MEMORIAL: 4 };
 
 const FOOD_TYPES = [
-  { name: 'Pellets',   nutrition: 8, hydration: 1, fiber: 6, sugar: 1, spriteW: 5, spriteH: 4, worldScale: 1.0, decayMinutes: 4320 },
-  { name: 'Millet',    nutrition: 5, hydration: 0, fiber: 4, sugar: 2, spriteW: 4, spriteH: 3, worldScale: 0.85, decayMinutes: 5040 },
-  { name: 'Sunflower', nutrition: 7, hydration: 0, fiber: 2, sugar: 1, spriteW: 4, spriteH: 6, worldScale: 0.72, decayMinutes: 4320 },
-  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12, worldScale: 2.35, decayMinutes: 2160 },
-  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12, worldScale: 1.85, decayMinutes: 2880 },
-  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.65, decayMinutes: 2160 },
-  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 1.9, decayMinutes: 1440 },
+  { name: 'Pellets',   nutrition: 8, hydration: 1, fiber: 6, sugar: 1, spriteW: 5, spriteH: 4, worldScale: 1.2, decayMinutes: 4320 },
+  { name: 'Millet',    nutrition: 5, hydration: 0, fiber: 4, sugar: 2, spriteW: 4, spriteH: 3, worldScale: 1.0, decayMinutes: 5040 },
+  { name: 'Sunflower', nutrition: 7, hydration: 0, fiber: 2, sugar: 1, spriteW: 4, spriteH: 6, worldScale: 0.9, decayMinutes: 4320 },
+  { name: 'Broccoli',  nutrition: 4, hydration: 5, fiber: 8, sugar: 1, spriteW: 10, spriteH: 12, worldScale: 2.7, decayMinutes: 2160 },
+  { name: 'Carrot',    nutrition: 3, hydration: 4, fiber: 5, sugar: 4, spriteW: 6, spriteH: 12, worldScale: 2.2, decayMinutes: 2880 },
+  { name: 'Banana',    nutrition: 4, hydration: 3, fiber: 2, sugar: 8, spriteW: 12, spriteH: 6, worldScale: 1.95, decayMinutes: 2160 },
+  { name: 'Egg',       nutrition: 10, hydration: 2, fiber: 0, sugar: 0, spriteW: 8, spriteH: 10, worldScale: 2.2, decayMinutes: 1440 },
 ];
 
 const LIFE_STAGES = { JUVENILE: 0, ADULT: 1, SENIOR: 2 };
@@ -654,7 +654,7 @@ function drawMemorialMarks() {
 
 function drawHideout() {
   if (habitatHideout.complete && habitatHideout.naturalWidth) {
-    ctx.drawImage(habitatHideout, 1, 148, 78, 71);
+    ctx.drawImage(habitatHideout, 10, 6, 76, 78, 0, 140, 88, 80);
     return;
   }
   const x = 15, y = 165;
@@ -738,7 +738,7 @@ function drawWheel() {
 
 function drawWaterBottle() {
   if (habitatBottle.complete && habitatBottle.naturalWidth) {
-    ctx.drawImage(habitatBottle, 187, 25, 49, 143);
+    ctx.drawImage(habitatBottle, 12, 0, 61, 128, 181, 18, 56, 151);
     const dripPhase = animFrame % 180;
     if (dripPhase < 30) ellipse(HABITAT.waterX, 165 + dripPhase * .28, 1.3, 1.8, C.water);
     return;
@@ -1562,7 +1562,7 @@ function drawUI() {
   px(9, 256, 222, 2, '#d7bc91');
   ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   ctx.font = 'bold 13px monospace'; ctx.fillStyle = '#f2e1c2'; ctx.fillText('‹', 13, 266); ctx.fillText('›', 218, 266);
-  drawFoodSprite(selectedFoodIndex, 43, 266, 1.25);
+  drawFoodSprite(selectedFoodIndex, 43, 266, 1.6);
   ctx.font = 'bold 8px monospace'; ctx.fillStyle = '#2f261e'; ctx.fillText(food.name.toUpperCase(), 61, 263);
   ctx.font = '6px monospace'; ctx.fillStyle = '#604a36'; ctx.fillText('SCROLL • PRESS TO DROP', 61, 272);
 }
