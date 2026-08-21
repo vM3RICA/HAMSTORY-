@@ -125,6 +125,10 @@ const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 const hedgehogSprite = new Image();
 hedgehogSprite.src = './hedgehog-character.png';
+const habitatBackground = new Image(); habitatBackground.src = './habitat-background.png';
+const habitatWheel = new Image(); habitatWheel.src = './habitat-wheel.png';
+const habitatHideout = new Image(); habitatHideout.src = './habitat-hideout.png';
+const habitatBottle = new Image(); habitatBottle.src = './habitat-bottle.png';
 
 // ============================================================
 // STORAGE
@@ -540,6 +544,16 @@ function drawFoodSprite(type, fx, fy, scale) {
 // ============================================================
 
 function drawHabitat() {
+  if (habitatBackground.complete && habitatBackground.naturalWidth) {
+    ctx.drawImage(habitatBackground, 0, 0, W, H);
+    drawMemorialMarks();
+    drawHideout();
+    drawWheel();
+    drawWaterBottle();
+    drawGroundFood();
+    drawFallingFood();
+    return;
+  }
   // The enclosure is the interface: dark cabinet, inset parchment back wall.
   ctx.fillStyle = '#211c18'; ctx.fillRect(0, 0, W, H);
   roundRect(3, 3, W - 6, 247, 8, '#493321');
@@ -628,6 +642,10 @@ function drawMemorialMarks() {
 }
 
 function drawHideout() {
+  if (habitatHideout.complete && habitatHideout.naturalWidth) {
+    ctx.drawImage(habitatHideout, 5, 158, 65, 59);
+    return;
+  }
   const x = 15, y = 165;
   ctx.fillStyle = '#294a41'; ctx.beginPath(); ctx.moveTo(x - 3, y + 18); ctx.lineTo(x + 25, y); ctx.lineTo(x + 55, y + 18); ctx.closePath(); ctx.fill();
   ctx.fillStyle = '#56776a'; ctx.beginPath(); ctx.moveTo(x, y + 17); ctx.lineTo(x + 25, y + 3); ctx.lineTo(x + 43, y + 13); ctx.closePath(); ctx.fill();
@@ -644,6 +662,21 @@ function drawHideout() {
 
 function drawWheel() {
   const cx = 119, cy = 142, r = 51;
+  if (habitatWheel.complete && habitatWheel.naturalWidth) {
+    ctx.drawImage(habitatWheel, 64, 87, 110, 117);
+    // Rotating tread markers remain dynamic while the photoreal pixel rim and
+    // stand stay fixed. This keeps exercise readable without rotating the feet.
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, 43, 0, Math.PI * 2); ctx.clip();
+    for (let i = 0; i < 10; i++) {
+      const angle = wheelAngle * Math.PI / 180 + i * Math.PI / 5;
+      const ix = cx + Math.cos(angle) * 37, iy = cy + Math.sin(angle) * 37;
+      const ox = cx + Math.cos(angle) * 43, oy = cy + Math.sin(angle) * 43;
+      ctx.strokeStyle = 'rgba(210,231,216,.7)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(ox, oy); ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
   px(83, 190, 10, 17, '#38594e'); px(145, 190, 10, 17, '#38594e');
   ctx.fillStyle = '#3e6659'; ctx.beginPath(); ctx.moveTo(78,207);ctx.lineTo(93,180);ctx.lineTo(101,207);ctx.fill();
   ctx.beginPath();ctx.moveTo(138,207);ctx.lineTo(147,180);ctx.lineTo(162,207);ctx.fill();
@@ -693,6 +726,12 @@ function drawWheel() {
 }
 
 function drawWaterBottle() {
+  if (habitatBottle.complete && habitatBottle.naturalWidth) {
+    ctx.drawImage(habitatBottle, 194, 35, 39, 126);
+    const dripPhase = animFrame % 180;
+    if (dripPhase < 30) ellipse(HABITAT.waterX, 165 + dripPhase * .28, 1.3, 1.8, C.water);
+    return;
+  }
   const bx = 203, by = 51;
   
   // Metal bracket/holder
